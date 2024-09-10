@@ -10,6 +10,10 @@
     "esp_assert.h": "c",
     "ring_buff.h": "c",
     "string.h": "c",
-    "assert.h": "c"
+    "assert.h": "c",
+    "freertos.h": "c",
+    "app_led.h": "c",
+    "regex": "c",
+    "task.h": "c"
   }
 }
