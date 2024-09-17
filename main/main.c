@@ -10,23 +10,74 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "freertos/queue.h"
+#include "driver/gpio.h"
 
 #include "app_led.h"
 
+#define BUTTON_GPIO 0
+
 static const char *TAG = "main";
-static uint8_t s_led_state = 0;
+
+static QueueHandle_t gpio_evt_queue = NULL;
+static led_colour_t colour = {
+    .rgb = {
+        .red = 16,
+        .green = 16,
+        .blue = 200
+    }
+};
+
+static void IRAM_ATTR gpio_isr_handler(void* arg)
+{
+    uint32_t gpio_num = (uint32_t) arg;
+    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+}
+
+static void button_task(void* arg)
+{
+    uint32_t io_num;
+    uint32_t aux;
+    for(;;) {
+        if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+            
+            ESP_LOGI(TAG, "Button pressed");
+            
+            app_led_update(0, colour);
+
+            aux = colour.rgb.red;
+            colour.rgb.red = colour.rgb.green;
+            colour.rgb.green = colour.rgb.blue;
+            colour.rgb.blue = aux;
+        }
+    }
+}
+
+static void button_init(void)
+{
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_NEGEDGE;
+    io_conf.pin_bit_mask = (1ULL << BUTTON_GPIO);
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
+
+    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+    xTaskCreate(button_task, "button_task", 2048, NULL, 10, NULL);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(BUTTON_GPIO, gpio_isr_handler, (void*) BUTTON_GPIO);
+
+}
 
 void app_main(void)
 {
-
     /* Configure the peripheral according to the LED type */
     configure_led();
+    button_init();
 
-    while (1) {
-        ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
-        app_led_run();
-        
-        s_led_state = blink_led();
+    while (1) {        
+        blink_led();
 
         app_led_run();
 

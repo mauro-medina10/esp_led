@@ -1,4 +1,6 @@
 
+#include <string.h>
+
 #include "led_strip.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
@@ -7,6 +9,10 @@
 #include "fsm.h"
 
 static const char *TAG = "app_led";
+
+//------------------------------------------------------//
+//  FSM declarations                                    //
+//------------------------------------------------------//
 
 /**
  * @brief MEF states
@@ -17,6 +23,7 @@ enum {
     INIT_ST,
     OFF_ST,
     ON_ST,
+    UPDATE_ST,
 };
 
 /**
@@ -27,6 +34,7 @@ enum {
     ON_EV = 0,
     OFF_EV,
     UPDATE_EV,
+    TOGGLE_EV,
     READY_EV,
 };
 
@@ -34,6 +42,7 @@ enum {
 static void enter_init(fsm_t *self, void* data);
 static void enter_on(fsm_t *self, void* data);
 static void enter_off(fsm_t *self, void* data);
+static void enter_update(fsm_t *self, void* data);
 
 // Define FSM states
 FSM_STATES_INIT(rgb_led)
@@ -42,6 +51,7 @@ FSM_CREATE_STATE(rgb_led, ROOT_ST,  FSM_ST_NONE,    INIT_ST,         NULL,      
 FSM_CREATE_STATE(rgb_led, INIT_ST,  ROOT_ST,        FSM_ST_NONE,    enter_init,     NULL, NULL)
 FSM_CREATE_STATE(rgb_led, OFF_ST,   ROOT_ST,        FSM_ST_NONE,    enter_off,      NULL, NULL)
 FSM_CREATE_STATE(rgb_led, ON_ST,    ROOT_ST,        FSM_ST_NONE,    enter_on,       NULL, NULL)
+FSM_CREATE_STATE(rgb_led, UPDATE_ST,ROOT_ST,        FSM_ST_NONE,    enter_update,   NULL, NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
@@ -50,36 +60,20 @@ FSM_TRANSITIONS_INIT(rgb_led)
 FSM_TRANSITION_CREATE(rgb_led,      INIT_ST,     READY_EV,      OFF_ST)
 FSM_TRANSITION_CREATE(rgb_led,      OFF_ST,      ON_EV,         ON_ST)
 FSM_TRANSITION_CREATE(rgb_led,      ON_ST,       OFF_EV,        OFF_ST)
-FSM_TRANSITION_CREATE(rgb_led,      ON_ST,       UPDATE_EV,     ON_ST)
+FSM_TRANSITION_CREATE(rgb_led,      OFF_ST,      TOGGLE_EV,     ON_ST)
+FSM_TRANSITION_CREATE(rgb_led,      ON_ST,       TOGGLE_EV,     OFF_ST)
+FSM_TRANSITION_CREATE(rgb_led,      ON_ST,       UPDATE_EV,     UPDATE_ST)
+FSM_TRANSITION_CREATE(rgb_led,      UPDATE_ST,   READY_EV,      ON_ST)
 FSM_TRANSITIONS_END()
+
+//------------------------------------------------------//
+//  APP declarations                                    //
+//------------------------------------------------------//
 
 /* Use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
    or you can edit the following line and set a number here.
 */
 #define BLINK_GPIO CONFIG_BLINK_GPIO
-
-static uint8_t s_led_state = 0;
-
-/**
- * @brief LED colour union
- * 
- */
-typedef union
-{
-    struct 
-    {
-        uint32_t red;
-        uint32_t green;
-        uint32_t blue;
-    } rgb;
-    struct 
-    {
-        uint32_t hue;
-        uint32_t saturation;
-        uint32_t value;
-    } hsv;
-} led_colour_t;
-
 
 /**
  * @brief LED data struct
@@ -91,18 +85,20 @@ typedef struct
     led_strip_config_t strip_config;
     led_strip_spi_config_t spi_config;
 
-    uint32_t max_n_led;
     uint32_t index;
     led_colour_t colour; 
 }led_ins_t;
 
-static led_strip_handle_t led_strip;
-
+// State machine 
 static fsm_t rgb_led;
 
+// Led instance
+static led_strip_handle_t led_strip;
 static led_ins_t led_device = {0};
 
-// static led_ins_t led_devices[LED_MAX_STRIPS] = {0};
+//------------------------------------------------------//
+//  FSM functions                                       //
+//------------------------------------------------------//
 
 /**
  * @brief Initialice the led strip
@@ -165,26 +161,32 @@ static void enter_off(fsm_t *self, void* data)
     led_strip_clear(*led_data->handle);
 }
 
+static void enter_update(fsm_t *self, void* data)
+{
+    led_ins_t *led_data = data;
+
+    ESP_LOGI(TAG, "Updating colour");
+
+    /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
+    led_strip_set_pixel(*led_data->handle, led_data->index, led_data->colour.rgb.red, led_data->colour.rgb.green, led_data->colour.rgb.blue);
+    /* Refresh the strip to send data */
+    led_strip_refresh(*led_data->handle);
+    
+    fsm_dispatch(&rgb_led, READY_EV, &led_device);
+}
+
+//------------------------------------------------------//
+//  APP functions                                       //
+//------------------------------------------------------//
+
 /**
  * @brief toggles the led strip
  * 
  * @return uint8_t 
  */
-uint8_t blink_led(void)
+void blink_led(void)
 {
-    /* If the addressable LED is enabled */
-    if (s_led_state) {
-
-        fsm_dispatch(&rgb_led, ON_EV, &led_device);
-    } else {
-        /* Set all LED off to clear all pixels */
-        fsm_dispatch(&rgb_led, OFF_EV, &led_device);
-    }
-
-    /* Toggle the LED state */
-    s_led_state = !s_led_state;
-
-    return s_led_state;
+    fsm_dispatch(&rgb_led, TOGGLE_EV, &led_device);
 }
 
 /**
@@ -199,7 +201,26 @@ void configure_led(void)
              &FSM_STATE_GET(rgb_led, ROOT_ST), NULL);
 }
 
-void app_led_run(void)
+/**
+ * @brief Runs led FSM
+ * 
+ * @return int 
+ */
+int app_led_run(void)
 {
-    fsm_run(&rgb_led); 
+    return fsm_run(&rgb_led); 
+}
+
+/**
+ * @brief Changes led colour
+ * 
+ * @param index 
+ * @param colour 
+ */
+void app_led_update(uint32_t index, led_colour_t colour)
+{
+    led_device.index = index;
+    memcpy(&led_device.colour, &colour, sizeof(led_colour_t));
+
+    fsm_dispatch(&rgb_led, UPDATE_EV, &led_device);
 }
