@@ -24,9 +24,12 @@ void app_main(void)
 
     while (1) {
         ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
+        app_led_run();
         
         s_led_state = blink_led();
-       
+
+        app_led_run();
+
         vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
     }
 }
