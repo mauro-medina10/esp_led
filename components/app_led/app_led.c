@@ -161,7 +161,7 @@ static void enter_update(fsm_t *self, void* data)
  * 
  * @return uint8_t 
  */
-void blink_led(led_ins_t *device)
+void toggle_led(led_ins_t *device)
 {
     fsm_dispatch(&device->led_fsm, TOGGLE_EV, device);
 }
@@ -197,6 +197,7 @@ int app_led_run(led_ins_t *device)
 int app_led_update(led_ins_t *device, uint32_t index, led_colour_t colour)
 {
     if(index > device->strip_config.max_leds) return -1;
+    if(fsm_state_get(&device->led_fsm) != ON_ST) return -2;
 
     memcpy(&device->colour[index], &colour, sizeof(led_colour_t));
 

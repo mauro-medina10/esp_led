@@ -21,6 +21,8 @@
 #define BLINK_GPIO CONFIG_BLINK_GPIO
 #define BUTTON_GPIO 0
 
+#define LONG_PRESS_LEN 8    // LONG_PRESS_LEN* 50mS
+
 static const char *TAG = "main";
 
 static QueueHandle_t gpio_evt_queue = NULL;
@@ -57,18 +59,35 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 static void button_task(void* arg)
 {
     uint32_t io_num;
-    uint32_t aux;
+    uint32_t aux = 0;
     for(;;) {
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-            
             ESP_LOGI(TAG, "Button pressed");
             
-            aux = colour.rgb.red;
-            colour.rgb.red = colour.rgb.green;
-            colour.rgb.green = colour.rgb.blue;
-            colour.rgb.blue = aux;
+            // Check for long press
+            for (uint8_t i = 0; i < LONG_PRESS_LEN; i++)
+            {
+                vTaskDelay((50 / portTICK_PERIOD_MS));
+                if(gpio_get_level(BUTTON_GPIO) == 1)
+                {
+                    aux = 1;
+                    break;
+                } 
+                aux = 0;
+            }
 
-            app_led_update(&led, 0, colour);
+            if(aux == 0)    // Long press
+            {
+                toggle_led(&led);
+            }else
+            {     
+                aux = colour.rgb.red;
+                colour.rgb.red = colour.rgb.green;
+                colour.rgb.green = colour.rgb.blue;
+                colour.rgb.blue = aux;
+
+                app_led_update(&led, 0, colour);
+            }
         }
     }
 }
@@ -97,8 +116,6 @@ void app_main(void)
     button_init();
 
     while (1) {        
-        blink_led(&led);
-
         app_led_run(&led);
 
         vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
