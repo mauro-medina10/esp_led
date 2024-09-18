@@ -15,6 +15,10 @@
 
 #include "app_led.h"
 
+/* Use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
+   or you can edit the following line and set a number here.
+*/
+#define BLINK_GPIO CONFIG_BLINK_GPIO
 #define BUTTON_GPIO 0
 
 static const char *TAG = "main";
@@ -25,6 +29,22 @@ static led_colour_t colour = {
         .red = 16,
         .green = 16,
         .blue = 200
+    }
+};
+
+static led_ins_t led = {
+    .strip_config = {
+        .strip_gpio_num = BLINK_GPIO,
+        .max_leds = 1,
+    },
+    .spi_config = {
+        .spi_bus = SPI2_HOST,
+        .flags.with_dma = true,
+    },
+    .colour[0] = {
+        .rgb.red = 200,
+        .rgb.green = 16,
+        .rgb.blue = 16,
     }
 };
 
@@ -43,12 +63,12 @@ static void button_task(void* arg)
             
             ESP_LOGI(TAG, "Button pressed");
             
-            app_led_update(0, colour);
-
             aux = colour.rgb.red;
             colour.rgb.red = colour.rgb.green;
             colour.rgb.green = colour.rgb.blue;
             colour.rgb.blue = aux;
+
+            app_led_update(&led, 0, colour);
         }
     }
 }
@@ -73,13 +93,13 @@ static void button_init(void)
 void app_main(void)
 {
     /* Configure the peripheral according to the LED type */
-    configure_led();
+    configure_led(&led);
     button_init();
 
     while (1) {        
-        blink_led();
+        blink_led(&led);
 
-        app_led_run();
+        app_led_run(&led);
 
         vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
     }

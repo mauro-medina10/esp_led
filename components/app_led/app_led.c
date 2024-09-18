@@ -45,56 +45,42 @@ static void enter_off(fsm_t *self, void* data);
 static void enter_update(fsm_t *self, void* data);
 
 // Define FSM states
-FSM_STATES_INIT(rgb_led)
+FSM_STATES_INIT(led_fsm)
 //                  name  state id  parent           sub            entry           run   exit
-FSM_CREATE_STATE(rgb_led, ROOT_ST,  FSM_ST_NONE,    INIT_ST,         NULL,          NULL, NULL)
-FSM_CREATE_STATE(rgb_led, INIT_ST,  ROOT_ST,        FSM_ST_NONE,    enter_init,     NULL, NULL)
-FSM_CREATE_STATE(rgb_led, OFF_ST,   ROOT_ST,        FSM_ST_NONE,    enter_off,      NULL, NULL)
-FSM_CREATE_STATE(rgb_led, ON_ST,    ROOT_ST,        FSM_ST_NONE,    enter_on,       NULL, NULL)
-FSM_CREATE_STATE(rgb_led, UPDATE_ST,ROOT_ST,        FSM_ST_NONE,    enter_update,   NULL, NULL)
+FSM_CREATE_STATE(led_fsm, ROOT_ST,  FSM_ST_NONE,    INIT_ST,         NULL,          NULL, NULL)
+FSM_CREATE_STATE(led_fsm, INIT_ST,  ROOT_ST,        FSM_ST_NONE,    enter_init,     NULL, NULL)
+FSM_CREATE_STATE(led_fsm, OFF_ST,   ROOT_ST,        FSM_ST_NONE,    enter_off,      NULL, NULL)
+FSM_CREATE_STATE(led_fsm, ON_ST,    ROOT_ST,        FSM_ST_NONE,    enter_on,       NULL, NULL)
+FSM_CREATE_STATE(led_fsm, UPDATE_ST,ROOT_ST,        FSM_ST_NONE,    enter_update,   NULL, NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
-FSM_TRANSITIONS_INIT(rgb_led)
+FSM_TRANSITIONS_INIT(led_fsm)
 //                    fsm name    State source   event       state target
-FSM_TRANSITION_CREATE(rgb_led,      INIT_ST,     READY_EV,      OFF_ST)
-FSM_TRANSITION_CREATE(rgb_led,      OFF_ST,      ON_EV,         ON_ST)
-FSM_TRANSITION_CREATE(rgb_led,      ON_ST,       OFF_EV,        OFF_ST)
-FSM_TRANSITION_CREATE(rgb_led,      OFF_ST,      TOGGLE_EV,     ON_ST)
-FSM_TRANSITION_CREATE(rgb_led,      ON_ST,       TOGGLE_EV,     OFF_ST)
-FSM_TRANSITION_CREATE(rgb_led,      ON_ST,       UPDATE_EV,     UPDATE_ST)
-FSM_TRANSITION_CREATE(rgb_led,      UPDATE_ST,   READY_EV,      ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      INIT_ST,     READY_EV,      OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,      ON_EV,         ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,       OFF_EV,        OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,      TOGGLE_EV,     ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,       TOGGLE_EV,     OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,       UPDATE_EV,     UPDATE_ST)
+FSM_TRANSITION_CREATE(led_fsm,      UPDATE_ST,   READY_EV,      ON_ST)
 FSM_TRANSITIONS_END()
 
 //------------------------------------------------------//
 //  APP declarations                                    //
 //------------------------------------------------------//
 
-/* Use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
-   or you can edit the following line and set a number here.
-*/
-#define BLINK_GPIO CONFIG_BLINK_GPIO
 
-/**
- * @brief LED data struct
- * 
- */
-typedef struct
+//------------------------------------------------------//
+//  LOCAL functions                                     //
+//------------------------------------------------------//
+static void strip_update(led_ins_t *led_data)
 {
-    led_strip_handle_t *handle;
-    led_strip_config_t strip_config;
-    led_strip_spi_config_t spi_config;
-
-    uint32_t index;
-    led_colour_t colour; 
-}led_ins_t;
-
-// State machine 
-static fsm_t rgb_led;
-
-// Led instance
-static led_strip_handle_t led_strip;
-static led_ins_t led_device = {0};
+    for (uint8_t i = 0; i < led_data->strip_config.max_leds; i++)
+    {
+        led_strip_set_pixel(led_data->handle, i, led_data->colour[i].rgb.red, led_data->colour[i].rgb.green, led_data->colour[i].rgb.blue);
+    }
+}
 
 //------------------------------------------------------//
 //  FSM functions                                       //
@@ -108,23 +94,13 @@ static led_ins_t led_device = {0};
  */
 static void enter_init(fsm_t *self, void* data)
 {
+    led_ins_t *led_data = data;
+    
     ESP_LOGI(TAG, "LED init");
     
-    /* LED strip initialization with the GPIO and pixels number*/
-    led_device.handle = &led_strip;
-    led_device.strip_config.strip_gpio_num = BLINK_GPIO;
-    led_device.strip_config.max_leds = 1; // at least one LED on board
-    led_device.spi_config.spi_bus = SPI2_HOST;
-    led_device.spi_config.flags.with_dma = true;
+    ESP_ERROR_CHECK(led_strip_new_spi_device(&led_data->strip_config, &led_data->spi_config, &led_data->handle));
 
-    led_device.index = 0;
-    led_device.colour.rgb.red = 200;
-    led_device.colour.rgb.green = 16;
-    led_device.colour.rgb.blue = 16;
-
-    ESP_ERROR_CHECK(led_strip_new_spi_device(&led_device.strip_config, &led_device.spi_config, led_device.handle));
-
-    fsm_dispatch(&rgb_led, READY_EV, &led_device);
+    fsm_dispatch(self, READY_EV, data);
 }
 
 /**
@@ -140,9 +116,9 @@ static void enter_on(fsm_t *self, void* data)
     ESP_LOGI(TAG, "Turning on");
 
     /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
-    led_strip_set_pixel(*led_data->handle, led_data->index, led_data->colour.rgb.red, led_data->colour.rgb.green, led_data->colour.rgb.blue);
+    strip_update(led_data);
     /* Refresh the strip to send data */
-    led_strip_refresh(*led_data->handle);
+    led_strip_refresh(led_data->handle);
 }
 
 /**
@@ -158,7 +134,7 @@ static void enter_off(fsm_t *self, void* data)
     ESP_LOGI(TAG, "Turning off");
 
     /* Set all LED off to clear all pixels */
-    led_strip_clear(*led_data->handle);
+    led_strip_clear(led_data->handle);
 }
 
 static void enter_update(fsm_t *self, void* data)
@@ -168,11 +144,12 @@ static void enter_update(fsm_t *self, void* data)
     ESP_LOGI(TAG, "Updating colour");
 
     /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
-    led_strip_set_pixel(*led_data->handle, led_data->index, led_data->colour.rgb.red, led_data->colour.rgb.green, led_data->colour.rgb.blue);
-    /* Refresh the strip to send data */
-    led_strip_refresh(*led_data->handle);
+    strip_update(led_data);
     
-    fsm_dispatch(&rgb_led, READY_EV, &led_device);
+    /* Refresh the strip to send data */
+    led_strip_refresh(led_data->handle);
+    
+    fsm_dispatch(self, READY_EV, data);
 }
 
 //------------------------------------------------------//
@@ -184,21 +161,21 @@ static void enter_update(fsm_t *self, void* data)
  * 
  * @return uint8_t 
  */
-void blink_led(void)
+void blink_led(led_ins_t *device)
 {
-    fsm_dispatch(&rgb_led, TOGGLE_EV, &led_device);
+    fsm_dispatch(&device->led_fsm, TOGGLE_EV, device);
 }
 
 /**
  * @brief Configures the led strip
  * 
  */
-void configure_led(void)
+void configure_led(led_ins_t *device)
 {
     ESP_LOGI(TAG, "Inits the FSM");
     
-    fsm_init(&rgb_led, FSM_TRANSITIONS_GET(rgb_led), FSM_TRANSITIONS_SIZE(rgb_led),
-             &FSM_STATE_GET(rgb_led, ROOT_ST), NULL);
+    fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm),
+             &FSM_STATE_GET(led_fsm, ROOT_ST), device);
 }
 
 /**
@@ -206,9 +183,9 @@ void configure_led(void)
  * 
  * @return int 
  */
-int app_led_run(void)
+int app_led_run(led_ins_t *device)
 {
-    return fsm_run(&rgb_led); 
+    return fsm_run(&device->led_fsm); 
 }
 
 /**
@@ -217,10 +194,13 @@ int app_led_run(void)
  * @param index 
  * @param colour 
  */
-void app_led_update(uint32_t index, led_colour_t colour)
+int app_led_update(led_ins_t *device, uint32_t index, led_colour_t colour)
 {
-    led_device.index = index;
-    memcpy(&led_device.colour, &colour, sizeof(led_colour_t));
+    if(index > device->strip_config.max_leds) return -1;
 
-    fsm_dispatch(&rgb_led, UPDATE_EV, &led_device);
+    memcpy(&device->colour[index], &colour, sizeof(led_colour_t));
+
+    fsm_dispatch(&device->led_fsm, UPDATE_EV, device);
+
+    return 0;
 }
