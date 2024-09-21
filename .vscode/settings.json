@@ -14,6 +14,15 @@
     "freertos.h": "c",
     "app_led.h": "c",
     "regex": "c",
-    "task.h": "c"
+    "task.h": "c",
+    "cstdint": "c",
+    "led_strip.h": "c",
+    "format": "c",
+    "bitset": "c",
+    "algorithm": "c",
+    "esp_log.h": "c",
+    "queue.h": "c",
+    "gpio.h": "c",
+    "fsm.h": "c"
   }
 }

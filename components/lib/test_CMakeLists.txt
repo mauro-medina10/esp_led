@@ -1,0 +1,11 @@
+set(COMPONENT_SRCS
+    "fsm/fsm.c"
+    "ring_buff/ring_buff.c"
+)
+
+set(COMPONENT_ADD_INCLUDEDIRS
+    "fsm/include"
+    "ring_buff/include"
+)
+
+register_component()
