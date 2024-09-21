@@ -28,7 +28,26 @@
 #define MAX_HIERARCHY_DEPTH  8
 #endif
 
+//----------------------------------------------------------------------
+//	DEFINITIONS
+//----------------------------------------------------------------------
+/**
+ * @brief FSM NULL STATE
+ * 
+ */
 #define FSM_ST_NONE 0
+
+/**
+ * @brief FSM FIRST STATE
+ * 
+ */
+#define FSM_ST_FIRST 1
+
+/**
+ * @brief FSM FIRST EVENT
+ * 
+ */
+#define FSM_EV_FIRST 0
 
 //----------------------------------------------------------------------
 //	MACROS

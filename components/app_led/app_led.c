@@ -19,7 +19,7 @@ static const char *TAG = "app_led";
  * 
  */
 enum {
-    ROOT_ST = 1,
+    ROOT_ST = FSM_ST_FIRST,
     INIT_ST,
     OFF_ST,
     ON_ST,
@@ -31,7 +31,7 @@ enum {
  * 
  */
 enum {
-    ON_EV = 0,
+    ON_EV = FSM_EV_FIRST,
     OFF_EV,
     UPDATE_EV,
     TOGGLE_EV,
