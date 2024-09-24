@@ -57,6 +57,6 @@ typedef struct
 void configure_led(led_ins_t *device);
 void toggle_led(led_ins_t *device);
 int  app_led_run(led_ins_t *device);
-int app_led_update(led_ins_t *device, uint32_t index, led_colour_t colour);
+int app_led_update(led_ins_t *device, uint32_t index, led_colour_t *colour, uint32_t len);
 
 #endif // _APP_LED_H_

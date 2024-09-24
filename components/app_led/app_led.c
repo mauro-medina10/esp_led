@@ -96,7 +96,7 @@ static void enter_init(fsm_t *self, void* data)
 {
     led_ins_t *led_data = data;
     
-    ESP_LOGI(TAG, "LED init");
+    ESP_LOGI(TAG, "LED init %d", led_data->strip_config.strip_gpio_num);
     
     ESP_ERROR_CHECK(led_strip_new_spi_device(&led_data->strip_config, &led_data->spi_config, &led_data->handle));
 
@@ -113,7 +113,7 @@ static void enter_on(fsm_t *self, void* data)
 {
     led_ins_t *led_data = data;
 
-    ESP_LOGI(TAG, "Turning on");
+    ESP_LOGI(TAG, "Turning on %d", led_data->strip_config.strip_gpio_num);
 
     /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
     strip_update(led_data);
@@ -131,7 +131,7 @@ static void enter_off(fsm_t *self, void* data)
 {
     led_ins_t *led_data = data;
 
-    ESP_LOGI(TAG, "Turning off");
+    ESP_LOGI(TAG, "Turning off %d", led_data->strip_config.strip_gpio_num);
 
     /* Set all LED off to clear all pixels */
     led_strip_clear(led_data->handle);
@@ -141,7 +141,7 @@ static void enter_update(fsm_t *self, void* data)
 {
     led_ins_t *led_data = data;
 
-    ESP_LOGI(TAG, "Updating colour");
+    ESP_LOGI(TAG, "Updating colour %d", led_data->strip_config.strip_gpio_num);
 
     /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
     strip_update(led_data);
@@ -172,7 +172,7 @@ void toggle_led(led_ins_t *device)
  */
 void configure_led(led_ins_t *device)
 {
-    ESP_LOGI(TAG, "Inits the FSM");
+    ESP_LOGI(TAG, "Inits the FSM %d", device->strip_config.strip_gpio_num);
     
     fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm),
              &FSM_STATE_GET(led_fsm, ROOT_ST), device);
@@ -189,17 +189,22 @@ int app_led_run(led_ins_t *device)
 }
 
 /**
- * @brief Changes led colour
+ * @brief  Changes led colour
  * 
+ * @param device 
  * @param index 
  * @param colour 
+ * @param len number of led to update
+ * @return int 
  */
-int app_led_update(led_ins_t *device, uint32_t index, led_colour_t colour)
+int app_led_update(led_ins_t *device, uint32_t index, led_colour_t *colour, uint32_t len)
 {
-    if(index > device->strip_config.max_leds) return -1;
+    if(index >= device->strip_config.max_leds) return -1;
+    if(len > device->strip_config.max_leds) return -1;
+    if((index+len) > device->strip_config.max_leds) return -1;
     if(fsm_state_get(&device->led_fsm) != ON_ST) return -2;
 
-    memcpy(&device->colour[index], &colour, sizeof(led_colour_t));
+    memcpy(&device->colour[index], colour, sizeof(led_colour_t)*len);
 
     fsm_dispatch(&device->led_fsm, UPDATE_EV, device);
 

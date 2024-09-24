@@ -23,6 +23,8 @@
     "esp_log.h": "c",
     "queue.h": "c",
     "gpio.h": "c",
-    "fsm.h": "c"
+    "fsm.h": "c",
+    "esp_attr.h": "c",
+    "random": "c"
   }
 }
