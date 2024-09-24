@@ -1,9 +1,0 @@
-set(COMPONENT_SRCS
-    "app_led/app_led.c"
-)
-
-set(COMPONENT_ADD_INCLUDEDIRS
-    "app_led/include"
-)
-
-register_component()

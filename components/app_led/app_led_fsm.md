@@ -1,6 +1,5 @@
 ::: mermaid
 stateDiagram-v2
-    [*] --> ROOT_ST
     state ROOT_ST {
         [*] --> INIT_ST
         INIT_ST --> OFF_ST : READY / enter_off()

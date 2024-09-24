@@ -25,6 +25,12 @@
     "gpio.h": "c",
     "fsm.h": "c",
     "esp_attr.h": "c",
-    "random": "c"
+    "random": "c",
+    "array": "c",
+    "string": "c",
+    "string_view": "c",
+    "span": "c",
+    "timers.h": "c",
+    "sdkconfig.h": "c"
   }
 }
