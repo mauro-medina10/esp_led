@@ -52,6 +52,12 @@ static void enter_state(fsm_t *fsm, const fsm_state_t *lca, const fsm_state_t *t
         }
     }
 
+    // When source state is target state, execute entry action
+    if((lca == state_target) && (depth == 0))
+    {
+        if(lca->entry_action) lca->entry_action(fsm, data);
+    }
+
     fsm->current_state = (fsm_state_t*)state_target;
 }
 
@@ -98,9 +104,6 @@ void fsm_dispatch(fsm_t *fsm, int event, void *data) {
     struct fsm_events_t new_event = {event, data};
     
     ringbuff_put(&fsm->event_queue, &new_event);
-#ifdef RTT_CONSOLE
-    // RTT_LOG("Event dispatch: %d\n", event);
-#endif    
 }
 
 static int fsm_process_events(fsm_t *fsm) {

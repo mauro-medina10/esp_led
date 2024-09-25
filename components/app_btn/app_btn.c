@@ -62,12 +62,10 @@ FSM_STATES_END()
 FSM_TRANSITIONS_INIT(btn_fsm)
 //                    fsm name State source   event       state target
 FSM_TRANSITION_CREATE(btn_fsm,   INIT_ST,     READY_EV,    IDLE_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   IDLE_ST,     PRESS_EV,    WAIT_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   WAIT_ST,     UNPRESS_EV,  PRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   IDLE_ST,     PRESS_EV,    PRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   PRESS_ST,    UNPRESS_EV,  IDLE_ST)
 FSM_TRANSITION_CREATE(btn_fsm,   WAIT_ST,     TIMEOUT_EV,  S_PRESS_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,  UNPRESS_EV,  IDLE_ST)
 FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,  TIMEOUT_EV,  L_PRESS_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   L_PRESS_ST,  UNPRESS_EV,  IDLE_ST)
 FSM_TRANSITIONS_END()
 
 //------------------------------------------------------//
@@ -86,8 +84,19 @@ FSM_TRANSITIONS_END()
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
     btn_ins_t * btn = (btn_ins_t *) arg;
+    if(btn == NULL)
+    {
+        ESP_LOGE(TAG, "ISR error");
+        return;
+    }
 
-    fsm_dispatch(&btn->fsm, PRESS_EV, btn);
+    if(gpio_get_level(btn->gpio) == 0)
+    {
+        fsm_dispatch(&btn->fsm, PRESS_EV, btn);
+    }else
+    {
+        fsm_dispatch(&btn->fsm, UNPRESS_EV, btn);
+    }
 }
 
 /**
@@ -98,10 +107,14 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 static void internal_task(void* arg)
 {
     btn_ins_t * btn = (btn_ins_t *) arg;
+    if(btn == NULL) return;
 
-    btn_run(btn);
+    for(;;)
+    {
+        btn_run(btn);
 
-    vTaskDelay(BTN_TASK_PERIOD_MS / portTICK_PERIOD_MS);
+        vTaskDelay(BTN_TASK_PERIOD_MS / portTICK_PERIOD_MS);
+    }
 }
 
 /**
@@ -135,23 +148,41 @@ static void TimerCallback(TimerHandle_t xTimer)
 static void enter_init(fsm_t *self, void* data)
 {
     btn_ins_t * btn = (btn_ins_t *) data;
+    BaseType_t result;
 
     // GPIO init
-    btn->io_conf.intr_type = GPIO_INTR_NEGEDGE;
-    btn->io_conf.pin_bit_mask = btn->gpio;
+    btn->io_conf.intr_type = GPIO_INTR_ANYEDGE;
+    btn->io_conf.pin_bit_mask = (1ULL << btn->gpio);
     btn->io_conf.mode = GPIO_MODE_INPUT;
     btn->io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&btn->io_conf);
     gpio_install_isr_service(0);
     gpio_isr_handler_add(btn->gpio, gpio_isr_handler, data);
-
+    
     // Queu init
     btn->evt_q = xQueueCreate(BTN_MAX_EVENTS, sizeof(btn_evt_t));
+    if(btn->evt_q == NULL)
+    {
+        ESP_LOGE(TAG, "Queu error");
+    
+    }
     // Timer init
     btn->internal_count = 0;
     btn->timer = xTimerCreate("btn_timer", pdMS_TO_TICKS(10), pdTRUE, data, TimerCallback);
+    xTimerStop(btn->timer, 0);
+    if(btn->timer == NULL)
+    {
+        ESP_LOGE(TAG, "Timer error");
+    }
     // Task init
-    xTaskCreate(internal_task, "btn", 2048, data, 10, NULL);
+    // result = xTaskCreate(internal_task, "btn_task", 1024, data, tskIDLE_PRIORITY+2, NULL);
+    // if(result != pdPASS)
+    // {
+    //     ESP_LOGE(TAG, "Task error");
+    //     return;
+    // }
+
+    fsm_dispatch(&btn->fsm, READY_EV, btn);
 }
 
 /**
@@ -200,6 +231,7 @@ static void enter_long_press(fsm_t *self, void* data)
 
     xTimerStop(btn->timer, 0);
 
+    ESP_LOGI(TAG, "btn event %d", btn->evt);
     // Sends long press event
     xQueueSend(btn->evt_q, &btn->evt, 0);
 }
@@ -219,6 +251,24 @@ static void exit_press(fsm_t *self, void* data)
     xTimerStop(btn->timer, 0);
 }
 
+/**
+ * @brief Sends the short press event
+ * 
+ * @param self 
+ * @param data 
+ */
+static void exit_short_press(fsm_t *self, void* data)
+{
+    btn_ins_t * btn = (btn_ins_t *) data;
+
+    btn->evt = PRESSED_EV;
+
+    xTimerStop(btn->timer, 0);
+
+    ESP_LOGI(TAG, "btn event %d", btn->evt);
+    // Sends long press event
+    xQueueSend(btn->evt_q, &btn->evt, 0);
+}
 
 //------------------------------------------------------//
 //  APP functions                                       //
@@ -230,11 +280,10 @@ static void exit_press(fsm_t *self, void* data)
  * @param btn 
  * @return int 
  */
-int btn_configure(btn_ins_t *device, QueueHandle_t queu, uint32_t gpio)
+int btn_configure(btn_ins_t *device, uint32_t gpio)
 {
-    ESP_LOGI(TAG, "Inits the FSM %d", (int)device->gpio);
+    if(device == NULL) return -1;
     
-    device->evt_q = queu;
     device->gpio = gpio;
 
     fsm_init(&device->fsm, FSM_TRANSITIONS_GET(btn_fsm), FSM_TRANSITIONS_SIZE(btn_fsm),
@@ -251,6 +300,8 @@ int btn_configure(btn_ins_t *device, QueueHandle_t queu, uint32_t gpio)
  */
 int btn_run(btn_ins_t *device)
 {
+    if(device == NULL) return -1;
+
     return fsm_run(&device->fsm); 
 }
 
@@ -264,6 +315,8 @@ int btn_run(btn_ins_t *device)
 btn_evt_t btn_wait_for_event(btn_ins_t *device, TickType_t maxWait)
 {
     btn_evt_t evt;
+    
+    if(device->evt_q == NULL) return NO_EV;
 
     xQueueReceive(device->evt_q, &evt, maxWait);
 

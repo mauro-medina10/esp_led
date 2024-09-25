@@ -10,11 +10,11 @@ stateDiagram-v2
             S_PRESS_ST --> L_PRESS_ST : TIMEOUT / enter_long_press()
         }
         PRESS_ST --> IDLE_ST : UNPRESSED / event_type
-        IDLE_ST : IDLE State
+        IDLE_ST : IDLE
     }
 
     PRESS_ST : PRESSED
-    INIT_ST : INIT
+    INIT_ST : Init
     WAIT_ST : antibounce 
     S_PRESS_ST : SHORT press 
     L_PRESS_ST : LONG press

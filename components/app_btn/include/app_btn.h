@@ -12,10 +12,10 @@
 //------------------------------------------------------//
 //  MACRO definitions                                    //
 //------------------------------------------------------//
-#define BTN_TASK_PERIOD_MS  10
+#define BTN_TASK_PERIOD_MS  100
 #define BTN_ANTIBOUNCE_T    10  // 100 ms
 #define BTN_LONG_PRESS_T    100 // 1 s
-#define BTN_MAX_EVENTS      1
+#define BTN_MAX_EVENTS      10
 //------------------------------------------------------//
 //  TYPES DEFINITIONS                                    //
 //------------------------------------------------------//
@@ -55,7 +55,7 @@ typedef struct
 //------------------------------------------------------//
 //  FUNCTIONS                                           //
 //------------------------------------------------------//
-int btn_configure(btn_ins_t *device, QueueHandle_t queu, uint32_t gpio);
+int btn_configure(btn_ins_t *device, uint32_t gpio);
 int btn_run(btn_ins_t *device);
 btn_evt_t btn_wait_for_event(btn_ins_t *device, TickType_t maxWait);
 #endif // _APP_BTN_H_

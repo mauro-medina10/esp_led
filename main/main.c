@@ -14,6 +14,7 @@
 #include "driver/gpio.h"
 
 #include "app_led.h"
+#include "app_btn.h"
 
 /* Use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
    or you can edit the following line and set a number here.
@@ -26,8 +27,11 @@
 
 static const char *TAG = "main";
 
-static QueueHandle_t gpio_evt_queue = NULL;
-static led_colour_t colour[7];
+/**
+ * @brief Button instance
+ * 
+ */
+static btn_ins_t btn;
 
 /**
  * @brief Internal LED instance definition
@@ -49,6 +53,8 @@ static led_ins_t led = {
     }
 };
 
+static led_colour_t colour[7];
+
 /**
  * @brief External LED instance definition
  * 
@@ -64,12 +70,6 @@ static led_ins_t led_ext = {
     },
 };
 
-static void IRAM_ATTR gpio_isr_handler(void* arg)
-{
-    uint32_t gpio_num = (uint32_t) arg;
-    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
-}
-
 static void rotate_colour(void)
 {
     uint32_t aux = 0;
@@ -84,65 +84,43 @@ static void rotate_colour(void)
     }
 }
 
-static int long_press_check(void)
-{
-    int aux = 0;
-
-    for (uint8_t i = 0; i < LONG_PRESS_LEN; i++)
-    {
-        vTaskDelay((50 / portTICK_PERIOD_MS));
-        if(gpio_get_level(BUTTON_GPIO) == 1)
-        {
-            aux = 1;
-            break;
-        } 
-        aux = 0;
-    }
-
-    return aux;
-}
-
 static void button_task(void* arg)
 {
-    uint32_t io_num;
-    int aux = 0;
+    btn_evt_t evt = 0;
+
+    ESP_LOGI(TAG, "btn task %d", (int) arg);
 
     for(;;) {
-        if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+        evt = btn_wait_for_event(&btn, portMAX_DELAY);
+
+        if(evt == PRESSED_EV) {
             ESP_LOGI(TAG, "Button pressed");
             
-            // Check for long press
-            aux = long_press_check();
+            rotate_colour();
+            app_led_update(&led_ext, 0, colour, 7);
+        }else if(evt == LONG_PRESS_EV)
+        {
+            ESP_LOGI(TAG, "Button long pressed");
 
-            if(aux == 0)    // Long press
-            {
-                toggle_led(&led);
-                toggle_led(&led_ext);
-            }else
-            {     
-                rotate_colour();
-
-                app_led_update(&led_ext, 0, colour, 7);
-            }
+            toggle_led(&led);
+            toggle_led(&led_ext);
         }
     }
 }
 
-static void button_init(void)
+static void btn_init(void)
 {
-    gpio_config_t io_conf = {};
-    io_conf.intr_type = GPIO_INTR_NEGEDGE;
-    io_conf.pin_bit_mask = (1ULL << BUTTON_GPIO);
-    io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    gpio_config(&io_conf);
+    BaseType_t result;
 
-    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    xTaskCreate(button_task, "button_task", 2048, NULL, 10, NULL);
+    ESP_LOGI(TAG, "btn init %d", (int) &btn);
 
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(BUTTON_GPIO, gpio_isr_handler, (void*) BUTTON_GPIO);
-
+    btn_configure(&btn, BUTTON_GPIO);
+    
+    result = xTaskCreate(button_task, "button_task", 2048, NULL, 10, NULL);
+    if(result != pdPASS)
+    {
+        ESP_LOGE(TAG, "Task error");
+    }
 }
 
 static void init_led_colour(led_ins_t *led)
@@ -164,12 +142,13 @@ void app_main(void)
     configure_led(&led);
     init_led_colour(&led_ext);
     configure_led(&led_ext);
-    button_init();
+    btn_init();
 
-    while (1) {        
+    while (1) { 
+        btn_run(&btn);       
         app_led_run(&led);
         app_led_run(&led_ext);
 
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 }
