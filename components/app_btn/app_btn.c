@@ -43,19 +43,18 @@ static void enter_init      (fsm_t *self, void* data);
 static void enter_wait      (fsm_t *self, void* data);
 static void enter_press     (fsm_t *self, void* data);
 static void enter_long_press(fsm_t *self, void* data);
-static void exit_short_press(fsm_t *self, void* data);
 static void exit_press      (fsm_t *self, void* data);
 
 // Define FSM states
 FSM_STATES_INIT(btn_fsm)
-//                  name  state id    parent           sub         entry            run     exit
-FSM_CREATE_STATE(btn_fsm, ROOT_ST,    FSM_ST_NONE,   INIT_ST,      NULL,            NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, INIT_ST,    ROOT_ST,       FSM_ST_NONE, enter_init,       NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, IDLE_ST,    ROOT_ST,       FSM_ST_NONE,  NULL,            NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, PRESS_ST,   ROOT_ST,       WAIT_ST,      NULL,            NULL,   exit_press)
-FSM_CREATE_STATE(btn_fsm, WAIT_ST,    PRESS_ST,      FSM_ST_NONE, enter_wait,       NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, S_PRESS_ST, PRESS_ST,      FSM_ST_NONE, enter_press,      NULL,   exit_short_press)
-FSM_CREATE_STATE(btn_fsm, L_PRESS_ST, PRESS_ST,      FSM_ST_NONE, enter_long_press, NULL,   NULL)
+//                  name  state id          parent           sub         entry            run     exit
+FSM_CREATE_STATE(btn_fsm, ROOT_ST,          FSM_ST_NONE,   INIT_ST,      NULL,            NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, INIT_ST,          ROOT_ST,       FSM_ST_NONE, enter_init,       NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, IDLE_ST,          ROOT_ST,       FSM_ST_NONE,  NULL,            NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, PRESS_ST,         ROOT_ST,       WAIT_ST,      NULL,            NULL,   exit_press)
+FSM_CREATE_STATE(btn_fsm, WAIT_ST,          PRESS_ST,      FSM_ST_NONE, enter_wait,       NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, S_PRESS_ST,       PRESS_ST,      FSM_ST_NONE, enter_press,      NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, L_PRESS_ST,       PRESS_ST,       FSM_ST_NONE,enter_long_press, NULL,   NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
@@ -64,6 +63,7 @@ FSM_TRANSITIONS_INIT(btn_fsm)
 FSM_TRANSITION_CREATE(btn_fsm,   INIT_ST,     READY_EV,    IDLE_ST)
 FSM_TRANSITION_CREATE(btn_fsm,   IDLE_ST,     PRESS_EV,    PRESS_ST)
 FSM_TRANSITION_CREATE(btn_fsm,   PRESS_ST,    UNPRESS_EV,  IDLE_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   L_PRESS_ST,  UNPRESS_EV,  IDLE_ST)
 FSM_TRANSITION_CREATE(btn_fsm,   WAIT_ST,     TIMEOUT_EV,  S_PRESS_ST)
 FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,  TIMEOUT_EV,  L_PRESS_ST)
 FSM_TRANSITIONS_END()
@@ -128,6 +128,8 @@ static void TimerCallback(TimerHandle_t xTimer)
 
     if(++btn->internal_count > btn->max_count)
     {
+        ESP_LOGI(TAG, "btn timer event %d", (int)btn->max_count);
+
         btn->internal_count = 0;
 
         xTimerStop(xTimer, 0);
@@ -195,6 +197,7 @@ static void enter_wait(fsm_t *self, void* data)
 {
     btn_ins_t * btn = (btn_ins_t *) data;
 
+    btn->evt = BOUNCE_EV;
     // Sets timer target to antibounce time
     btn->max_count = BTN_ANTIBOUNCE_T;
 
@@ -210,6 +213,9 @@ static void enter_wait(fsm_t *self, void* data)
 static void enter_press(fsm_t *self, void* data)
 {
     btn_ins_t * btn = (btn_ins_t *) data;
+    
+    // Sets event as pressed
+    btn->evt = PRESSED_EV;
 
     // Sets timer target to long press time
     btn->max_count = BTN_LONG_PRESS_T;
@@ -231,7 +237,6 @@ static void enter_long_press(fsm_t *self, void* data)
 
     xTimerStop(btn->timer, 0);
 
-    ESP_LOGI(TAG, "btn event %d", btn->evt);
     // Sends long press event
     xQueueSend(btn->evt_q, &btn->evt, 0);
 }
@@ -249,25 +254,9 @@ static void exit_press(fsm_t *self, void* data)
     btn->internal_count = 0;
 
     xTimerStop(btn->timer, 0);
-}
 
-/**
- * @brief Sends the short press event
- * 
- * @param self 
- * @param data 
- */
-static void exit_short_press(fsm_t *self, void* data)
-{
-    btn_ins_t * btn = (btn_ins_t *) data;
-
-    btn->evt = PRESSED_EV;
-
-    xTimerStop(btn->timer, 0);
-
-    ESP_LOGI(TAG, "btn event %d", btn->evt);
     // Sends long press event
-    xQueueSend(btn->evt_q, &btn->evt, 0);
+    if(btn->evt != LONG_PRESS_EV) xQueueSend(btn->evt_q, &btn->evt, 0);
 }
 
 //------------------------------------------------------//

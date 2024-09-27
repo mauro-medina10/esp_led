@@ -13,8 +13,8 @@
 //  MACRO definitions                                    //
 //------------------------------------------------------//
 #define BTN_TASK_PERIOD_MS  100
-#define BTN_ANTIBOUNCE_T    10  // 100 ms
-#define BTN_LONG_PRESS_T    100 // 1 s
+#define BTN_ANTIBOUNCE_T    5  // 50 ms
+#define BTN_LONG_PRESS_T    50 // 500 ms
 #define BTN_MAX_EVENTS      10
 //------------------------------------------------------//
 //  TYPES DEFINITIONS                                    //
@@ -27,6 +27,7 @@
 typedef enum
 {
     NO_EV = 0,
+    BOUNCE_EV,
     PRESSED_EV,
     LONG_PRESS_EV,
 }btn_evt_t;
