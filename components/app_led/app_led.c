@@ -163,6 +163,8 @@ static void enter_update(fsm_t *self, void* data)
  */
 void toggle_led(led_ins_t *device)
 {
+    if(device == NULL) return;
+
     fsm_dispatch(&device->led_fsm, TOGGLE_EV, device);
 }
 
@@ -172,6 +174,8 @@ void toggle_led(led_ins_t *device)
  */
 void configure_led(led_ins_t *device)
 {
+    if(device == NULL) return;
+
     ESP_LOGI(TAG, "Inits the FSM %d", device->strip_config.strip_gpio_num);
     
     fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm),
@@ -185,6 +189,8 @@ void configure_led(led_ins_t *device)
  */
 int app_led_run(led_ins_t *device)
 {
+    if(device == NULL) return -1;
+
     return fsm_run(&device->led_fsm); 
 }
 
@@ -199,8 +205,9 @@ int app_led_run(led_ins_t *device)
  */
 int app_led_update(led_ins_t *device, uint32_t index, led_colour_t *colour, uint32_t len)
 {
+    if(device == NULL || colour == NULL) return -3;
     if(index >= device->strip_config.max_leds) return -1;
-    if(len > device->strip_config.max_leds) return -1;
+    if(len == 0 || len > device->strip_config.max_leds) return -1;
     if((index+len) > device->strip_config.max_leds) return -1;
     if(fsm_state_get(&device->led_fsm) != ON_ST) return -2;
 

@@ -82,8 +82,11 @@ static fsm_state_t* find_lca(fsm_state_t *s1, fsm_state_t *s2) {
     return a;
 }
 
-void fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transitions, const fsm_state_t* initial_state, void *initial_data) {
+int fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transitions, const fsm_state_t* initial_state, void *initial_data) {
     struct internal_ctx *const internal = (void *)&fsm->internal;
+
+    if(fsm == NULL || transitions == NULL || initial_state == NULL) return -1;
+    if(num_transitions == 0) return -2;
 
     fsm->transitions         = transitions;
     fsm->num_transitions     = num_transitions;
@@ -97,16 +100,24 @@ void fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transi
     RTT_LOG("Init: %d\n", initial_state->state_id);
 #endif
     enter_state(fsm, initial_state, initial_state, initial_data);
+
+    return 0;
 }
 
 void fsm_dispatch(fsm_t *fsm, int event, void *data) {
     
+    if(fsm == NULL) return;
+    if(fsm->num_transitions == 0) return;
+
     struct fsm_events_t new_event = {event, data};
     
     ringbuff_put(&fsm->event_queue, &new_event);
 }
 
 static int fsm_process_events(fsm_t *fsm) {
+    
+    if(fsm == NULL) return -1;
+    if(fsm->num_transitions == 0) return -2;
 
     struct internal_ctx *const internal = (void *)&fsm->internal;
 
@@ -150,6 +161,8 @@ static int fsm_process_events(fsm_t *fsm) {
 
 int fsm_run(fsm_t *fsm)
 {
+    if(fsm == NULL) return -1;
+
     struct internal_ctx *const internal = (void *)&fsm->internal;
 
     /* No need to continue if terminate was set */
@@ -169,11 +182,15 @@ int fsm_run(fsm_t *fsm)
 
 int fsm_state_get(fsm_t *fsm)
 {
+    if(fsm == NULL) return FSM_ST_NONE;
+
     return fsm->current_state->state_id;
 }
 
 void fsm_terminate(fsm_t *fsm, int val)
 {
+    if(fsm == NULL) return;
+
     struct internal_ctx *const internal = (void *)&fsm->internal;
 #ifdef RTT_CONSOLE
     RTT_LOG("FSM terminated\n");
@@ -183,9 +200,14 @@ void fsm_terminate(fsm_t *fsm, int val)
 }
 
 int fsm_has_pending_events(fsm_t *fsm) {
+    if(fsm == NULL) return -1;
+
     return ringbuff_num(&fsm->event_queue) > 0;
 }
 
 void fsm_flush_events(fsm_t *fsm) {
+    
+    if(fsm == NULL) return;
+
     ringbuff_flush(&fsm->event_queue);
 }

@@ -167,7 +167,7 @@ struct fsm_t {
  * @param initial_state     Default first state
  * @param initial_data      User custom data struct pointer
  */
-void fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transitions, const fsm_state_t* initial_state, void *initial_data);
+int fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transitions, const fsm_state_t* initial_state, void *initial_data);
 
 /**
  * @brief Dispatches an event to the state machine. It will be process when fsm_run is called.
