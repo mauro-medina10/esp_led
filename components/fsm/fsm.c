@@ -12,6 +12,13 @@
 #include <stdbool.h>
 #include "fsm.h"
 
+#ifdef CONFIG_FREERTOS_PORT
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#else
+#include "ring_buff.h"
+#endif 
+
 /* LOGGING MODULE REGISTER */
 #ifdef RTT_CONSOLE
 #include "SRC/RTT/rtt_log.h"
@@ -95,7 +102,12 @@ int fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transit
     internal->is_exit        = false;
     fsm->current_data        = initial_data;
 
+#ifdef CONFIG_FREERTOS_PORT
+    fsm->event_queue = xQueueCreate(FSM_MAX_EVENTS, sizeof(struct fsm_events_t));
+    if(fsm->event_queue == NULL) return -3;
+#else
     ringbuff_init(&fsm->event_queue, fsm->events_buff, FSM_MAX_EVENTS, sizeof(struct fsm_events_t));
+#endif
 #ifdef RTT_CONSOLE
     RTT_LOG("Init: %d\n", initial_state->state_id);
 #endif
@@ -110,8 +122,18 @@ void fsm_dispatch(fsm_t *fsm, int event, void *data) {
     if(fsm->num_transitions == 0) return;
 
     struct fsm_events_t new_event = {event, data};
-    
+
+#ifdef CONFIG_FREERTOS_PORT
+    if(xPortInIsrContext())
+    {
+        xQueueSendFromISR(fsm->event_queue, &new_event, NULL);
+    }else
+    {
+        xQueueSend(fsm->event_queue, &new_event, 0);
+    }
+#else
     ringbuff_put(&fsm->event_queue, &new_event);
+#endif    
 }
 
 static int fsm_process_events(fsm_t *fsm) {
@@ -124,7 +146,19 @@ static int fsm_process_events(fsm_t *fsm) {
     struct fsm_events_t current_event;
 
     // Ver si proceso todos los eventos o de a uno (actualmente procesa todos)
+#ifdef CONFIG_FREERTOS_PORT
+    int event_ready = 0;
+    if(xPortInIsrContext())
+    {
+        event_ready = xQueueReceiveFromISR(fsm->event_queue, &current_event, NULL);
+    }else
+    {
+        event_ready = xQueueReceive(fsm->event_queue, &current_event, 0);
+    }
+    while(event_ready) {
+#else
     while (ringbuff_get(&fsm->event_queue, &current_event) == 0) {
+#endif    
 #ifdef RTT_CONSOLE        
         RTT_LOG("Event process: %d, state: %d\n", current_event.event, fsm->current_state->state_id);
 #endif
@@ -155,6 +189,15 @@ static int fsm_process_events(fsm_t *fsm) {
         if (internal->terminate) {
             return fsm->terminate_val;
         }
+#ifdef CONFIG_FREERTOS_PORT        
+        if(xPortInIsrContext())
+        {
+            event_ready = xQueueReceiveFromISR(fsm->event_queue, &current_event, NULL);
+        }else
+        {
+            event_ready = xQueueReceive(fsm->event_queue, &current_event, 0);
+        }
+#endif        
     }
     return 0;
 }
@@ -202,12 +245,26 @@ void fsm_terminate(fsm_t *fsm, int val)
 int fsm_has_pending_events(fsm_t *fsm) {
     if(fsm == NULL) return -1;
 
+#ifdef CONFIG_FREERTOS_PORT
+        if(xPortInIsrContext())
+        {
+            return uxQueueMessagesWaitingFromISR(fsm->event_queue) > 0;
+        }else
+        {
+            return uxQueueMessagesWaiting(fsm->event_queue) > 0;
+        }
+#else
     return ringbuff_num(&fsm->event_queue) > 0;
+#endif
 }
 
 void fsm_flush_events(fsm_t *fsm) {
     
     if(fsm == NULL) return;
 
+#ifdef CONFIG_FREERTOS_PORT
+    xQueueReset(fsm->event_queue);
+#else
     ringbuff_flush(&fsm->event_queue);
+#endif
 }

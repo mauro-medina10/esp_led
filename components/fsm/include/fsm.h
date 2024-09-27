@@ -14,7 +14,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "sdkconfig.h"
+
+#ifdef CONFIG_FREERTOS_PORT
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#else
 #include "ring_buff.h"
+#endif 
 
 //----------------------------------------------------------------------
 //	DEFINES
@@ -141,8 +148,12 @@ struct fsm_t {
     const fsm_transition_t *transitions;
     // Total number of transitions
     size_t num_transitions;
-    // Events ring buffer 
+    // Events ring buffer
+#ifdef CONFIG_FREERTOS_PORT
+    QueueHandle_t event_queue;
+#else
     struct ringbuff event_queue;
+#endif 
     struct fsm_events_t events_buff[FSM_MAX_EVENTS];
     // Current state running
     fsm_state_t* current_state;

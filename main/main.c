@@ -146,5 +146,7 @@ void app_main(void)
     configure_led(&led_ext);
     btn_init();
 
+    ESP_LOGI(TAG,"End main task");
+
     vTaskDelete(NULL);
 }
