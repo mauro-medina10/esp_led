@@ -144,8 +144,7 @@ void app_main(void)
     configure_led(&led_ext);
     btn_init();
 
-    while (1) { 
-        btn_run(&btn);       
+    while (1) {  
         app_led_run(&led);
         app_led_run(&led_ext);
 

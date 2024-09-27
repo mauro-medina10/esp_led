@@ -107,13 +107,12 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 static void internal_task(void* arg)
 {
     btn_ins_t * btn = (btn_ins_t *) arg;
-    if(btn == NULL) return;
 
     for(;;)
     {
-        btn_run(btn);
-
         vTaskDelay(BTN_TASK_PERIOD_MS / portTICK_PERIOD_MS);
+
+        btn_run(btn);
     }
 }
 
@@ -177,12 +176,12 @@ static void enter_init(fsm_t *self, void* data)
         ESP_LOGE(TAG, "Timer error");
     }
     // Task init
-    // result = xTaskCreate(internal_task, "btn_task", 1024, data, tskIDLE_PRIORITY+2, NULL);
-    // if(result != pdPASS)
-    // {
-    //     ESP_LOGE(TAG, "Task error");
-    //     return;
-    // }
+    result = xTaskCreate(internal_task, "btn_task", 1024, data, tskIDLE_PRIORITY+2, NULL);
+    if(result != pdPASS)
+    {
+        ESP_LOGE(TAG, "Task error");
+        return;
+    }
 
     fsm_dispatch(&btn->fsm, READY_EV, btn);
 }

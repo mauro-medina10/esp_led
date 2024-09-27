@@ -12,7 +12,7 @@
 //------------------------------------------------------//
 //  MACRO definitions                                    //
 //------------------------------------------------------//
-#define BTN_TASK_PERIOD_MS  100
+#define BTN_TASK_PERIOD_MS  10
 #define BTN_ANTIBOUNCE_T    5  // 50 ms
 #define BTN_LONG_PRESS_T    50 // 500 ms
 #define BTN_MAX_EVENTS      10
