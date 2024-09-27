@@ -40,6 +40,7 @@ enum {
 
 // Action function prototypes
 static void enter_init      (fsm_t *self, void* data);
+static void enter_idle      (fsm_t *self, void* data);
 static void enter_wait      (fsm_t *self, void* data);
 static void enter_press     (fsm_t *self, void* data);
 static void enter_long_press(fsm_t *self, void* data);
@@ -50,7 +51,7 @@ FSM_STATES_INIT(btn_fsm)
 //                  name  state id          parent           sub         entry            run     exit
 FSM_CREATE_STATE(btn_fsm, ROOT_ST,          FSM_ST_NONE,   INIT_ST,      NULL,            NULL,   NULL)
 FSM_CREATE_STATE(btn_fsm, INIT_ST,          ROOT_ST,       FSM_ST_NONE, enter_init,       NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, IDLE_ST,          ROOT_ST,       FSM_ST_NONE,  NULL,            NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, IDLE_ST,          ROOT_ST,       FSM_ST_NONE,  enter_idle,            NULL,   NULL)
 FSM_CREATE_STATE(btn_fsm, PRESS_ST,         ROOT_ST,       WAIT_ST,      NULL,            NULL,   exit_press)
 FSM_CREATE_STATE(btn_fsm, WAIT_ST,          PRESS_ST,      FSM_ST_NONE, enter_wait,       NULL,   NULL)
 FSM_CREATE_STATE(btn_fsm, S_PRESS_ST,       PRESS_ST,      FSM_ST_NONE, enter_press,      NULL,   NULL)
@@ -81,22 +82,19 @@ FSM_TRANSITIONS_END()
  * 
  * @param arg 
  */
-static void IRAM_ATTR gpio_isr_handler(void* arg)
+static void gpio_isr_handler(void* arg)
 {
     btn_ins_t * btn = (btn_ins_t *) arg;
-    if(btn == NULL)
-    {
-        ESP_LOGE(TAG, "ISR error");
-        return;
-    }
 
-    if(gpio_get_level(btn->gpio) == 0)
-    {
-        fsm_dispatch(&btn->fsm, PRESS_EV, btn);
-    }else
-    {
-        fsm_dispatch(&btn->fsm, UNPRESS_EV, btn);
-    }
+    fsm_dispatch(&btn->fsm, (gpio_get_level(btn->gpio) == 0) ? PRESS_EV : UNPRESS_EV, btn);
+}
+
+static void enter_idle(fsm_t *self, void* data)
+{
+    btn_ins_t * btn = (btn_ins_t *) data;
+    if(data == NULL) return;
+
+    ESP_LOGI(TAG, "Init ready %d", (int)btn->gpio);
 }
 
 /**
@@ -107,6 +105,11 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 static void internal_task(void* arg)
 {
     btn_ins_t * btn = (btn_ins_t *) arg;
+    if(btn == NULL) 
+    {
+        ESP_LOGE(TAG, "Btn task error");
+        vTaskDelete(NULL);
+    }
 
     for(;;)
     {
@@ -151,37 +154,58 @@ static void enter_init(fsm_t *self, void* data)
     btn_ins_t * btn = (btn_ins_t *) data;
     BaseType_t result;
 
+    ESP_LOGI(TAG, "Enter init");
+
+    if (btn == NULL) {
+        ESP_LOGE(TAG, "Button instance is NULL");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Initializing button on GPIO %d", (int)btn->gpio);
+
     // GPIO init
     btn->io_conf.intr_type = GPIO_INTR_ANYEDGE;
     btn->io_conf.pin_bit_mask = (1ULL << btn->gpio);
     btn->io_conf.mode = GPIO_MODE_INPUT;
     btn->io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&btn->io_conf);
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(btn->gpio, gpio_isr_handler, data);
     
-    // Queu init
-    btn->evt_q = xQueueCreate(BTN_MAX_EVENTS, sizeof(btn_evt_t));
-    if(btn->evt_q == NULL)
-    {
-        ESP_LOGE(TAG, "Queu error");
-    
+    esp_err_t err = gpio_install_isr_service(0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to install ISR service: %s", esp_err_to_name(err));
+        return;
     }
+    
+    err = gpio_isr_handler_add(btn->gpio, gpio_isr_handler, data);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to add ISR handler: %s", esp_err_to_name(err));
+        return;
+    }
+    
+    // Queue init
+    btn->evt_q = xQueueCreate(BTN_MAX_EVENTS, sizeof(btn_evt_t));
+    if(btn->evt_q == NULL) {
+        ESP_LOGE(TAG, "Failed to create event queue");
+        return;
+    }
+    
     // Timer init
     btn->internal_count = 0;
     btn->timer = xTimerCreate("btn_timer", pdMS_TO_TICKS(10), pdTRUE, data, TimerCallback);
-    xTimerStop(btn->timer, 0);
-    if(btn->timer == NULL)
-    {
-        ESP_LOGE(TAG, "Timer error");
-    }
-    // Task init
-    result = xTaskCreate(internal_task, "btn_task", 1024, data, tskIDLE_PRIORITY+2, NULL);
-    if(result != pdPASS)
-    {
-        ESP_LOGE(TAG, "Task error");
+    if(btn->timer == NULL) {
+        ESP_LOGE(TAG, "Failed to create timer");
         return;
     }
+    xTimerStop(btn->timer, 0);
+
+    // Task init
+    result = xTaskCreate(internal_task, "btn_task", 2048*2, (void*const)btn, tskIDLE_PRIORITY+5, NULL);
+    if(result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create task: %d", result);
+        return;
+    }
+
+    ESP_LOGI(TAG, "Button initialization complete");
 
     fsm_dispatch(&btn->fsm, READY_EV, btn);
 }
@@ -196,6 +220,8 @@ static void enter_wait(fsm_t *self, void* data)
 {
     btn_ins_t * btn = (btn_ins_t *) data;
 
+    ESP_LOGI(TAG, "Enter wait");
+    
     btn->evt = BOUNCE_EV;
     // Sets timer target to antibounce time
     btn->max_count = BTN_ANTIBOUNCE_T;
@@ -212,6 +238,8 @@ static void enter_wait(fsm_t *self, void* data)
 static void enter_press(fsm_t *self, void* data)
 {
     btn_ins_t * btn = (btn_ins_t *) data;
+    
+    ESP_LOGI(TAG, "Enter press");
     
     // Sets event as pressed
     btn->evt = PRESSED_EV;
@@ -232,6 +260,8 @@ static void enter_long_press(fsm_t *self, void* data)
 {
     btn_ins_t * btn = (btn_ins_t *) data;
 
+    ESP_LOGI(TAG, "Enter long press");
+    
     btn->evt = LONG_PRESS_EV;
 
     xTimerStop(btn->timer, 0);
@@ -250,6 +280,8 @@ static void exit_press(fsm_t *self, void* data)
 {
     btn_ins_t * btn = (btn_ins_t *) data;
 
+    ESP_LOGI(TAG, "Exit press %d", (int)btn->evt);
+    
     btn->internal_count = 0;
 
     xTimerStop(btn->timer, 0);
@@ -304,6 +336,7 @@ btn_evt_t btn_wait_for_event(btn_ins_t *device, TickType_t maxWait)
 {
     btn_evt_t evt;
     
+    if(device == NULL) return NO_EV;
     if(device->evt_q == NULL) return NO_EV;
 
     xQueueReceive(device->evt_q, &evt, maxWait);

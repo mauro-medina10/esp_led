@@ -95,7 +95,7 @@ int fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transit
     internal->is_exit        = false;
     fsm->current_data        = initial_data;
 
-    ringbuff_init(&fsm->event_queue, &fsm->events_buff, FSM_MAX_EVENTS, sizeof(struct fsm_events_t));
+    ringbuff_init(&fsm->event_queue, fsm->events_buff, FSM_MAX_EVENTS, sizeof(struct fsm_events_t));
 #ifdef RTT_CONSOLE
     RTT_LOG("Init: %d\n", initial_state->state_id);
 #endif

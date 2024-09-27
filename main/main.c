@@ -104,6 +104,10 @@ static void button_task(void* arg)
 
             toggle_led(&led);
             toggle_led(&led_ext);
+        }else
+        {
+            ESP_LOGI(TAG, "Button wrong ev %d", (int)evt);
+            vTaskDelay(100 / portTICK_PERIOD_MS);
         }
     }
 }
@@ -111,8 +115,6 @@ static void button_task(void* arg)
 static void btn_init(void)
 {
     BaseType_t result;
-
-    ESP_LOGI(TAG, "btn init %d", (int) &btn);
 
     btn_configure(&btn, BUTTON_GPIO);
     
@@ -144,10 +146,5 @@ void app_main(void)
     configure_led(&led_ext);
     btn_init();
 
-    while (1) {  
-        app_led_run(&led);
-        app_led_run(&led_ext);
-
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-    }
+    vTaskDelete(NULL);
 }

@@ -10,6 +10,8 @@
 /* Max number of leds in a strip */
 #define MAX_STRIP_LEN 7
 
+#define LED_TASK_PERIOD_MS 200
+#define LED_TASK_PRIOR 2
 //------------------------------------------------------//
 //  TYPES DEFINITIONS                                    //
 //------------------------------------------------------//

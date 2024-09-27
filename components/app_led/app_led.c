@@ -13,6 +13,7 @@ static const char *TAG = "app_led";
 //------------------------------------------------------//
 //  FSM declarations                                    //
 //------------------------------------------------------//
+static void internal_led_task(void* arg);
 
 /**
  * @brief MEF states
@@ -85,7 +86,6 @@ static void strip_update(led_ins_t *led_data)
 //------------------------------------------------------//
 //  FSM functions                                       //
 //------------------------------------------------------//
-
 /**
  * @brief Initialice the led strip
  * 
@@ -95,10 +95,19 @@ static void strip_update(led_ins_t *led_data)
 static void enter_init(fsm_t *self, void* data)
 {
     led_ins_t *led_data = data;
-    
+    BaseType_t result;
+
     ESP_LOGI(TAG, "LED init %d", led_data->strip_config.strip_gpio_num);
     
     ESP_ERROR_CHECK(led_strip_new_spi_device(&led_data->strip_config, &led_data->spi_config, &led_data->handle));
+
+    // Task init
+    result = xTaskCreate(internal_led_task, "led_task", 2048*2, (void*const)led_data, tskIDLE_PRIORITY+LED_TASK_PRIOR, NULL);
+    if(result != pdPASS)
+    {
+        ESP_LOGE(TAG, "Task error");
+        return;
+    }
 
     fsm_dispatch(self, READY_EV, data);
 }
@@ -150,6 +159,28 @@ static void enter_update(fsm_t *self, void* data)
     led_strip_refresh(led_data->handle);
     
     fsm_dispatch(self, READY_EV, data);
+}
+
+/**
+ * @brief Internal task for running fsm every 10ms
+ * 
+ * @param arg 
+ */
+static void internal_led_task(void* arg)
+{
+    led_ins_t * led = (led_ins_t *) arg;
+    if(led == NULL) 
+    {
+        ESP_LOGE(TAG, "Led task error");
+        vTaskDelete(NULL);
+    }
+
+    for(;;)
+    {
+        vTaskDelay(LED_TASK_PERIOD_MS / portTICK_PERIOD_MS);
+
+        app_led_run(led);
+    }
 }
 
 //------------------------------------------------------//
