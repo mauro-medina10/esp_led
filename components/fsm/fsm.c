@@ -12,7 +12,7 @@
 #include <stdbool.h>
 #include "fsm.h"
 
-#ifdef CONFIG_FREERTOS_PORT
+#ifdef FREERTOS_API
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #else
@@ -102,7 +102,7 @@ int fsm_init(fsm_t *fsm, const fsm_transition_t *transitions, size_t num_transit
     internal->is_exit        = false;
     fsm->current_data        = initial_data;
 
-#ifdef CONFIG_FREERTOS_PORT
+#ifdef FREERTOS_API
     fsm->event_queue = xQueueCreate(FSM_MAX_EVENTS, sizeof(struct fsm_events_t));
     if(fsm->event_queue == NULL) return -3;
 #else
@@ -123,7 +123,7 @@ void fsm_dispatch(fsm_t *fsm, int event, void *data) {
 
     struct fsm_events_t new_event = {event, data};
 
-#ifdef CONFIG_FREERTOS_PORT
+#ifdef FREERTOS_API
     if(xPortInIsrContext())
     {
         xQueueSendFromISR(fsm->event_queue, &new_event, NULL);
@@ -146,7 +146,7 @@ static int fsm_process_events(fsm_t *fsm) {
     struct fsm_events_t current_event;
 
     // Ver si proceso todos los eventos o de a uno (actualmente procesa todos)
-#ifdef CONFIG_FREERTOS_PORT
+#ifdef FREERTOS_API
     int event_ready = 0;
     if(xPortInIsrContext())
     {
@@ -189,7 +189,7 @@ static int fsm_process_events(fsm_t *fsm) {
         if (internal->terminate) {
             return fsm->terminate_val;
         }
-#ifdef CONFIG_FREERTOS_PORT        
+#ifdef FREERTOS_API        
         if(xPortInIsrContext())
         {
             event_ready = xQueueReceiveFromISR(fsm->event_queue, &current_event, NULL);
@@ -245,7 +245,7 @@ void fsm_terminate(fsm_t *fsm, int val)
 int fsm_has_pending_events(fsm_t *fsm) {
     if(fsm == NULL) return -1;
 
-#ifdef CONFIG_FREERTOS_PORT
+#ifdef FREERTOS_API
         if(xPortInIsrContext())
         {
             return uxQueueMessagesWaitingFromISR(fsm->event_queue) > 0;
@@ -262,7 +262,7 @@ void fsm_flush_events(fsm_t *fsm) {
     
     if(fsm == NULL) return;
 
-#ifdef CONFIG_FREERTOS_PORT
+#ifdef FREERTOS_API
     xQueueReset(fsm->event_queue);
 #else
     ringbuff_flush(&fsm->event_queue);

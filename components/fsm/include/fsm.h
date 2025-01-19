@@ -17,6 +17,10 @@
 #include "sdkconfig.h"
 
 #ifdef CONFIG_FREERTOS_PORT
+#define FREERTOS_API
+#endif
+
+#ifdef FREERTOS_API
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #else
@@ -149,7 +153,7 @@ struct fsm_t {
     // Total number of transitions
     size_t num_transitions;
     // Events ring buffer
-#ifdef CONFIG_FREERTOS_PORT
+#ifdef FREERTOS_API
     QueueHandle_t event_queue;
 #else
     struct ringbuff event_queue;

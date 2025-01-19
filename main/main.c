@@ -21,7 +21,7 @@
 */
 #define BLINK_GPIO CONFIG_BLINK_GPIO
 #define BUTTON_GPIO 0
-#define LED_STRIP_GPIO 13
+// #define LED_STRIP_GPIO 13
 
 #define LONG_PRESS_LEN 8    // LONG_PRESS_LEN* 50mS
 
@@ -55,6 +55,7 @@ static led_ins_t led = {
 
 static led_colour_t colour[7];
 
+#ifdef LED_STRIP_GPIO
 /**
  * @brief External LED instance definition
  * 
@@ -69,7 +70,7 @@ static led_ins_t led_ext = {
         .flags.with_dma = true,
     },
 };
-
+#endif
 static void rotate_colour(void)
 {
     uint32_t aux = 0;
@@ -96,14 +97,16 @@ static void button_task(void* arg)
         if(evt == PRESSED_EV) {
             ESP_LOGI(TAG, "Button pressed");
             
-            rotate_colour();
-            app_led_update(&led_ext, 0, colour, 7);
+            rotate_colour();       
+            app_led_update(&led, 0, colour, led.strip_config.max_leds);         
         }else if(evt == LONG_PRESS_EV)
         {
             ESP_LOGI(TAG, "Button long pressed");
 
             toggle_led(&led);
+#ifdef LED_STRIP_GPIO            
             toggle_led(&led_ext);
+#endif            
         }else
         {
             ESP_LOGI(TAG, "Button wrong ev %d", (int)evt);
@@ -141,9 +144,11 @@ static void init_led_colour(led_ins_t *led)
 void app_main(void)
 {
     /* Configure the peripheral according to the LED type */
+    init_led_colour(&led);
     configure_led(&led);
-    init_led_colour(&led_ext);
+#ifdef LED_STRIP_GPIO    
     configure_led(&led_ext);
+#endif
     btn_init();
 
     ESP_LOGI(TAG,"End main task");
