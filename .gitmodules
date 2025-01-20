@@ -1,0 +1,3 @@
+[submodule "fsm"]
+    path = components/fsm
+    url = https://github.com/mauro-medina10/fsm.git
