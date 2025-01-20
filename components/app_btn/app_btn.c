@@ -200,7 +200,7 @@ static void enter_init(fsm_t *self, void* data)
     xTimerStop(btn->timer, 0);
 
     // Task init
-    result = xTaskCreate(internal_task, "btn_task", 2048*2, (void*const)btn, tskIDLE_PRIORITY+5, NULL);
+    result = xTaskCreate(internal_task, "btn_task", 2048*6, (void*const)btn, tskIDLE_PRIORITY+5, NULL);
     if(result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create task: %d", result);
         return;

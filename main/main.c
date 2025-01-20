@@ -15,6 +15,7 @@
 
 #include "app_led.h"
 #include "app_btn.h"
+#include "fsm_music.h"
 
 /* Use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
    or you can edit the following line and set a number here.
@@ -104,6 +105,7 @@ static void button_task(void* arg)
             ESP_LOGI(TAG, "Button long pressed");
 
             toggle_led(&led);
+            fsm_music();
 #ifdef LED_STRIP_GPIO            
             toggle_led(&led_ext);
 #endif            
@@ -121,7 +123,7 @@ static void btn_init(void)
 
     btn_configure(&btn, BUTTON_GPIO);
     
-    result = xTaskCreate(button_task, "button_task", 2048, NULL, 10, NULL);
+    result = xTaskCreate(button_task, "button_task", 2048*4, NULL, 10, NULL);
     if(result != pdPASS)
     {
         ESP_LOGE(TAG, "Task error");
