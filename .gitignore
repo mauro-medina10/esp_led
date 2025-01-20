@@ -58,3 +58,6 @@ Mkfile.old
 dkms.conf
 build/*
 .devcontainer/Dockerfile
+
+# Libraries
+components/fsm/*

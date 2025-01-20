@@ -1,0 +1,39 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"esp_wifi.h": "c",
+			"esp_netif_net_stack.h": "c",
+			"esp_err.h": "c",
+			"esp_assert.h": "c",
+			"ring_buff.h": "c",
+			"string.h": "c",
+			"assert.h": "c",
+			"freertos.h": "c",
+			"app_led.h": "c",
+			"regex": "c",
+			"task.h": "c",
+			"cstdint": "c",
+			"led_strip.h": "c",
+			"format": "c",
+			"bitset": "c",
+			"algorithm": "c",
+			"esp_log.h": "c",
+			"queue.h": "c",
+			"gpio.h": "c",
+			"fsm.h": "c",
+			"esp_attr.h": "c",
+			"random": "c",
+			"array": "c",
+			"string": "c",
+			"string_view": "c",
+			"span": "c",
+			"timers.h": "c",
+			"sdkconfig.h": "c"
+		}
+	}
+}
