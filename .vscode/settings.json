@@ -31,7 +31,10 @@
     "string_view": "c",
     "span": "c",
     "timers.h": "c",
-    "sdkconfig.h": "c"
+    "sdkconfig.h": "c",
+    "chrono": "c",
+    "typeinfo": "c",
+    "stdio.h": "c"
   },
   "idf.espIdfPath": "/home/mmauro/esp/v5.3.1/esp-idf",
   "idf.pythonBinPath": "/home/mmauro/.espressif/python_env/idf5.3_py3.10_env/bin/python",

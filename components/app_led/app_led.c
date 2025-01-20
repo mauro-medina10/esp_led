@@ -37,6 +37,7 @@ enum {
     UPDATE_EV,
     TOGGLE_EV,
     READY_EV,
+    LAST_EV,
 };
 
 // Action function prototypes
@@ -209,7 +210,7 @@ void configure_led(led_ins_t *device)
 
     ESP_LOGI(TAG, "Inits the FSM %d", device->strip_config.strip_gpio_num);
     
-    fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm),
+    fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm), LAST_EV,
              &FSM_STATE_GET(led_fsm, ROOT_ST), device);
 }
 
