@@ -12,10 +12,10 @@
 #include "esp_log.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
+#include "fsm.h"
 
 #include "app_led.h"
 #include "app_btn.h"
-#include "fsm_music.h"
 
 /* Use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
    or you can edit the following line and set a number here.
@@ -33,6 +33,15 @@ static const char *TAG = "main";
  * 
  */
 static btn_ins_t btn;
+
+static void btn_pressed(fsm_t* self, void* data);
+static void btn_long_pressed(fsm_t* self, void* data);
+
+// Button Actor 
+FSM_ACTOR_INIT(btn_actor)
+FSM_ACTOR_CREATE(S_PRESS_ST, btn_pressed, NULL, NULL)
+FSM_ACTOR_CREATE(L_PRESS_ST, btn_long_pressed, NULL, NULL)
+FSM_ACTOR_END()
 
 /**
  * @brief Internal LED instance definition
@@ -85,7 +94,7 @@ static void rotate_colour(void)
         colour[i].rgb.blue = aux;
     }
 }
-
+#ifdef CONFIG_CUSTOM_BTN_TASK
 static void button_task(void* arg)
 {
     btn_evt_t evt = 0;
@@ -116,18 +125,34 @@ static void button_task(void* arg)
         }
     }
 }
+#else
+static void btn_pressed(fsm_t* self, void* data)
+{
+    rotate_colour();       
+    app_led_update(&led, 0, colour, led.strip_config.max_leds);   
+}
+
+static void btn_long_pressed(fsm_t* self, void* data)
+{
+    toggle_led(&led);
+}
+#endif
 
 static void btn_init(void)
 {
+    btn_configure(&btn, BUTTON_GPIO);
+
+#ifdef CONFIG_CUSTOM_BTN_TASK
     BaseType_t result;
 
-    btn_configure(&btn, BUTTON_GPIO);
-    
     result = xTaskCreate(button_task, "button_task", 2048*4, NULL, 10, NULL);
     if(result != pdPASS)
     {
         ESP_LOGE(TAG, "Task error");
     }
+#else    
+    btn_actor_link(&btn, FSM_ACTOR_GET(btn_actor), FSM_ACTOR_SIZE(btn_actor));
+#endif
 }
 
 static void init_led_colour(led_ins_t *led)

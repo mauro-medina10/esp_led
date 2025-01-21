@@ -55,10 +55,37 @@ typedef struct
     btn_evt_t evt;
 }btn_ins_t;
 
+/**
+ * @brief MEF states
+ * 
+ */
+typedef enum {
+    ROOT_ST = FSM_ST_FIRST,
+    INIT_ST,
+    IDLE_ST,
+    PRESS_ST,
+    WAIT_ST,
+    S_PRESS_ST,
+    L_PRESS_ST,
+} btn_st_t;
+
+/**
+ * @brief MEF events
+ * 
+ */
+enum {
+    READY_EV = FSM_EV_FIRST,
+    PRESS_EV,
+    UNPRESS_EV,
+    TIMEOUT_EV,
+    LAST_EV,
+};
+
 //------------------------------------------------------//
 //  FUNCTIONS                                           //
 //------------------------------------------------------//
 int btn_configure(btn_ins_t *device, uint32_t gpio);
+int btn_actor_link(btn_ins_t *device, struct fsm_actor_t* actor, int actor_len);
 int btn_run(btn_ins_t *device);
 btn_evt_t btn_wait_for_event(btn_ins_t *device, TickType_t maxWait);
 #endif // _APP_BTN_H_

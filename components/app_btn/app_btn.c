@@ -13,32 +13,6 @@ static const char *TAG = "app_button";
 //  FSM declarations                                    //
 //------------------------------------------------------//
 
-/**
- * @brief MEF states
- * 
- */
-enum {
-    ROOT_ST = FSM_ST_FIRST,
-    INIT_ST,
-    IDLE_ST,
-    PRESS_ST,
-    WAIT_ST,
-    S_PRESS_ST,
-    L_PRESS_ST,
-};
-
-/**
- * @brief MEF events
- * 
- */
-enum {
-    READY_EV = FSM_EV_FIRST,
-    PRESS_EV,
-    UNPRESS_EV,
-    TIMEOUT_EV,
-    LAST_EV,
-};
-
 // Action function prototypes
 static void enter_init      (fsm_t *self, void* data);
 static void enter_idle      (fsm_t *self, void* data);
@@ -73,7 +47,6 @@ FSM_TRANSITIONS_END()
 //------------------------------------------------------//
 //  APP declarations                                    //
 //------------------------------------------------------//
-
 
 //------------------------------------------------------//
 //  LOCAL functions                                     //
@@ -311,6 +284,18 @@ int btn_configure(btn_ins_t *device, uint32_t gpio)
              &FSM_STATE_GET(btn_fsm, ROOT_ST), device);
 
     return 0;
+}
+
+/**
+ * @brief Links actor to the button fsm
+ * 
+ * @param device 
+ * @param actor 
+ * @return int 
+ */
+int btn_actor_link(btn_ins_t *device, struct fsm_actor_t* actor, int actor_len)
+{
+    return fsm_actor_link(&device->fsm, actor, actor_len);
 }
 
 /**

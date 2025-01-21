@@ -31,6 +31,12 @@ menu "Example Configuration"
             bool "SPI"
     endchoice
 
+    config CUSTOM_BTN_TASK
+        bool "Use custom task to handle button events"
+        default n
+        help
+            Use custom freertos task to handle button events.
+
     config BLINK_GPIO
         int "Blink GPIO number"
         range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
