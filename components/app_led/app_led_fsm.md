@@ -1,19 +1,41 @@
-::: mermaid
+```mermaid
 stateDiagram-v2
-    state ROOT_ST {
-        [*] --> INIT_ST
-        INIT_ST --> OFF_ST : READY / enter_off()
-        OFF_ST --> ON_ST : ON / enter_on()
-        OFF_ST --> ON_ST : TOGGLE / enter_on()
-        ON_ST --> OFF_ST : TOGGLE / enter_off()
-        ON_ST --> OFF_ST : OFF / enter_off()
-        ON_ST --> UPDATE_ST : UPDATE / enter_update()
-        UPDATE_ST --> ON_ST : READY / enter_on()
+	state ROOT_ST {
+		[*] --> INIT_ST
+		INIT_ST
+		OFF_ST
+		ON_ST
+		UPDATE_ST
+	}
 
-        INIT_ST : Initial State
-        OFF_ST : LED Off State
-        ON_ST : LED On State
-        UPDATE_ST : Update State
-    }
-    ROOT_ST : LED FSM
-:::
+	state ON_ST {
+		[*] --> ON_FIX_ST
+		ON_FIX_ST
+		BLINKING_ST
+	}
+
+	state BLINKING_ST {
+		[*] --> BLINK_OFF_ST
+		BLINK_OFF_ST
+		BLINK_ON_ST
+	}
+
+	INIT_ST --> OFF_ST : READY
+	OFF_ST --> ON_ST : ON or TOGGLE
+	ON_ST --> OFF_ST : OFF or TOGGLE
+	ON_ST --> UPDATE_ST : UPDATE
+	BLINKING_ST --> ON_FIX_ST : ON_EV
+	BLINK_OFF_ST --> BLINK_ON_ST : Timeout
+	BLINK_ON_ST --> BLINK_OFF_ST : Timeout
+	UPDATE_ST --> ON_ST : READY
+	ON_FIX_ST --> BLINKING_ST : BLINK_EV
+
+	ROOT_ST: LED FSM
+	OFF_ST : OFF
+	ON_ST : Working
+	INIT_ST : Init
+	ON_FIX_ST : ON
+	BLINK_ON_ST : Blink ON
+	BLINK_OFF_ST : Blink OFF
+	UPDATE_ST : Update
+```

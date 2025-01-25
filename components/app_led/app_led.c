@@ -29,6 +29,7 @@ enum {
     OFF_ST,
     ON_ST,
     ON_FIX_ST,
+    BLINKING_ST,
     BLINK_ON_ST,
     BLINK_OFF_ST,
     UPDATE_ST,
@@ -62,9 +63,10 @@ FSM_CREATE_STATE(led_fsm, INIT_ST,      ROOT_ST,        FSM_ST_NONE,    enter_in
 FSM_CREATE_STATE(led_fsm, OFF_ST,       ROOT_ST,        FSM_ST_NONE,    enter_off,      NULL, NULL)
 FSM_CREATE_STATE(led_fsm, ON_ST,        ROOT_ST,        ON_FIX_ST,      enter_on,       NULL, NULL)
 FSM_CREATE_STATE(led_fsm, ON_FIX_ST,    ON_ST,          FSM_ST_NONE,    enter_on,       NULL, NULL)
-FSM_CREATE_STATE(led_fsm, BLINK_ON_ST,  ON_ST,          FSM_ST_NONE,    enter_on,       NULL, NULL)
-FSM_CREATE_STATE(led_fsm, BLINK_OFF_ST, ON_ST,          FSM_ST_NONE,    enter_off,      NULL, NULL)
-FSM_CREATE_STATE(led_fsm, UPDATE_ST,    ON_ST,          FSM_ST_NONE,    enter_update,   NULL, NULL)
+FSM_CREATE_STATE(led_fsm, BLINKING_ST,  ON_ST,          BLINK_OFF_ST,   NULL,           NULL, NULL)
+FSM_CREATE_STATE(led_fsm, BLINK_ON_ST,  BLINKING_ST,    FSM_ST_NONE,    enter_on,       NULL, NULL)
+FSM_CREATE_STATE(led_fsm, BLINK_OFF_ST, BLINKING_ST,    FSM_ST_NONE,    enter_off,      NULL, NULL)
+FSM_CREATE_STATE(led_fsm, UPDATE_ST,    ROOT_ST,        FSM_ST_NONE,    enter_update,   NULL, NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
@@ -76,9 +78,10 @@ FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          OFF_EV,         OFF_ST)
 FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,         TOGGLE_EV,      ON_ST)
 FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          TOGGLE_EV,      OFF_ST)
 FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          UPDATE_EV,      UPDATE_ST)
-FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          BLINK_EV,       BLINK_OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_FIX_ST,      BLINK_EV,       BLINKING_ST)
 FSM_TRANSITION_CREATE(led_fsm,      BLINK_ON_ST,    FSM_TIMEOUT_EV, BLINK_OFF_ST)
 FSM_TRANSITION_CREATE(led_fsm,      BLINK_OFF_ST,   FSM_TIMEOUT_EV, BLINK_ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      BLINKING_ST,    ON_EV,          ON_FIX_ST)
 FSM_TRANSITION_CREATE(led_fsm,      UPDATE_ST,      READY_EV,       ON_ST)
 FSM_TRANSITIONS_END()
 
