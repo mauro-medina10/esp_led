@@ -1,6 +1,9 @@
 
 #include <string.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/timers.h"
+
 #include "led_strip.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
@@ -14,6 +17,7 @@ static const char *TAG = "app_led";
 //  FSM declarations                                    //
 //------------------------------------------------------//
 static void internal_led_task(void* arg);
+static void timed_events_timer(TimerHandle_t xTimer);
 
 /**
  * @brief MEF states
@@ -24,6 +28,9 @@ enum {
     INIT_ST,
     OFF_ST,
     ON_ST,
+    ON_FIX_ST,
+    BLINK_ON_ST,
+    BLINK_OFF_ST,
     UPDATE_ST,
 };
 
@@ -37,6 +44,7 @@ enum {
     UPDATE_EV,
     TOGGLE_EV,
     READY_EV,
+    BLINK_EV,
     LAST_EV,
 };
 
@@ -49,23 +57,29 @@ static void enter_update(fsm_t *self, void* data);
 // Define FSM states
 FSM_STATES_INIT(led_fsm)
 //                  name  state id  parent           sub            entry           run   exit
-FSM_CREATE_STATE(led_fsm, ROOT_ST,  FSM_ST_NONE,    INIT_ST,         NULL,          NULL, NULL)
-FSM_CREATE_STATE(led_fsm, INIT_ST,  ROOT_ST,        FSM_ST_NONE,    enter_init,     NULL, NULL)
-FSM_CREATE_STATE(led_fsm, OFF_ST,   ROOT_ST,        FSM_ST_NONE,    enter_off,      NULL, NULL)
-FSM_CREATE_STATE(led_fsm, ON_ST,    ROOT_ST,        FSM_ST_NONE,    enter_on,       NULL, NULL)
-FSM_CREATE_STATE(led_fsm, UPDATE_ST,ROOT_ST,        FSM_ST_NONE,    enter_update,   NULL, NULL)
+FSM_CREATE_STATE(led_fsm, ROOT_ST,      FSM_ST_NONE,    INIT_ST,         NULL,          NULL, NULL)
+FSM_CREATE_STATE(led_fsm, INIT_ST,      ROOT_ST,        FSM_ST_NONE,    enter_init,     NULL, NULL)
+FSM_CREATE_STATE(led_fsm, OFF_ST,       ROOT_ST,        FSM_ST_NONE,    enter_off,      NULL, NULL)
+FSM_CREATE_STATE(led_fsm, ON_ST,        ROOT_ST,        ON_FIX_ST,      enter_on,       NULL, NULL)
+FSM_CREATE_STATE(led_fsm, ON_FIX_ST,    ON_ST,          FSM_ST_NONE,    enter_on,       NULL, NULL)
+FSM_CREATE_STATE(led_fsm, BLINK_ON_ST,  ON_ST,          FSM_ST_NONE,    enter_on,       NULL, NULL)
+FSM_CREATE_STATE(led_fsm, BLINK_OFF_ST, ON_ST,          FSM_ST_NONE,    enter_off,      NULL, NULL)
+FSM_CREATE_STATE(led_fsm, UPDATE_ST,    ON_ST,          FSM_ST_NONE,    enter_update,   NULL, NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
 FSM_TRANSITIONS_INIT(led_fsm)
-//                    fsm name    State source   event       state target
-FSM_TRANSITION_CREATE(led_fsm,      INIT_ST,     READY_EV,      OFF_ST)
-FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,      ON_EV,         ON_ST)
-FSM_TRANSITION_CREATE(led_fsm,      ON_ST,       OFF_EV,        OFF_ST)
-FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,      TOGGLE_EV,     ON_ST)
-FSM_TRANSITION_CREATE(led_fsm,      ON_ST,       TOGGLE_EV,     OFF_ST)
-FSM_TRANSITION_CREATE(led_fsm,      ON_ST,       UPDATE_EV,     UPDATE_ST)
-FSM_TRANSITION_CREATE(led_fsm,      UPDATE_ST,   READY_EV,      ON_ST)
+//                    fsm name    State source      event           state target
+FSM_TRANSITION_CREATE(led_fsm,      INIT_ST,        READY_EV,       OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,         ON_EV,          ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          OFF_EV,         OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,         TOGGLE_EV,      ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          TOGGLE_EV,      OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          UPDATE_EV,      UPDATE_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          BLINK_EV,       BLINK_OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      BLINK_ON_ST,    FSM_TIMEOUT_EV, BLINK_OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      BLINK_OFF_ST,   FSM_TIMEOUT_EV, BLINK_ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      UPDATE_ST,      READY_EV,       ON_ST)
 FSM_TRANSITIONS_END()
 
 //------------------------------------------------------//
@@ -102,6 +116,17 @@ static void enter_init(fsm_t *self, void* data)
     
     ESP_ERROR_CHECK(led_strip_new_spi_device(&led_data->strip_config, &led_data->spi_config, &led_data->handle));
 
+    // Timer for timed events
+    TimerHandle_t xTimer = xTimerCreate(
+        "TimedEvents",                              // Timer name
+        LED_TIMER_PERIOD_MS / portTICK_PERIOD_MS,   // Period in ticks
+        pdTRUE,                                     // Auto-reload (periodic)
+        (void*)self,                               // Timer ID (not used here)
+        timed_events_timer                          // Callback function
+    );
+
+    if (xTimer != NULL) xTimerStart(xTimer, 0);
+    
     // Task init
     result = xTaskCreate(internal_led_task, "led_task", 2048*2, (void*const)led_data, tskIDLE_PRIORITY+LED_TASK_PRIOR, NULL);
     if(result != pdPASS)
@@ -184,9 +209,29 @@ static void internal_led_task(void* arg)
     }
 }
 
+// Timer callback function
+static void timed_events_timer(TimerHandle_t xTimer)
+{
+    fsm_t *fsm =  (fsm_t*)pvTimerGetTimerID(xTimer);
+
+    fsm_ticks_hook(fsm);
+}
+
 //------------------------------------------------------//
 //  APP functions                                       //
 //------------------------------------------------------//
+
+/**
+ * @brief toggles the led strip
+ * 
+ * @return uint8_t 
+ */
+void blink_led(led_ins_t *device)
+{
+    if(device == NULL) return;
+
+    fsm_dispatch(&device->led_fsm, BLINK_EV, device);
+}
 
 /**
  * @brief toggles the led strip
@@ -200,6 +245,21 @@ void toggle_led(led_ins_t *device)
     fsm_dispatch(&device->led_fsm, TOGGLE_EV, device);
 }
 
+
+void led_on(led_ins_t *device)
+{
+    if(device == NULL) return;
+
+    fsm_dispatch(&device->led_fsm, ON_EV, device);
+}
+
+void led_off(led_ins_t *device)
+{
+    if(device == NULL) return;
+
+    fsm_dispatch(&device->led_fsm, OFF_EV, device);
+}
+
 /**
  * @brief Configures the led strip
  * 
@@ -210,8 +270,11 @@ void configure_led(led_ins_t *device)
 
     ESP_LOGI(TAG, "Inits the FSM %d", device->strip_config.strip_gpio_num);
     
-    fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm), LAST_EV,
+    fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm), 6, 1,
              &FSM_STATE_GET(led_fsm, ROOT_ST), device);
+
+    fsm_timed_event_set(&FSM_STATE_GET(led_fsm, BLINK_ON_ST), LED_BLINK_PERIOD);
+    fsm_timed_event_set(&FSM_STATE_GET(led_fsm, BLINK_OFF_ST), LED_BLINK_PERIOD);
 }
 
 /**

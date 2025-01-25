@@ -12,6 +12,10 @@
 
 #define LED_TASK_PERIOD_MS 200
 #define LED_TASK_PRIOR 2
+
+#define LED_TIMER_PERIOD_MS 1
+
+#define LED_BLINK_PERIOD (250 / LED_TIMER_PERIOD_MS)
 //------------------------------------------------------//
 //  TYPES DEFINITIONS                                    //
 //------------------------------------------------------//
@@ -57,6 +61,9 @@ typedef struct
 //------------------------------------------------------//
 
 void configure_led(led_ins_t *device);
+void led_on(led_ins_t *device);
+void led_off(led_ins_t *device);
+void blink_led(led_ins_t *device);
 void toggle_led(led_ins_t *device);
 int  app_led_run(led_ins_t *device);
 int app_led_update(led_ins_t *device, uint32_t index, led_colour_t *colour, uint32_t len);

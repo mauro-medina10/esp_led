@@ -280,7 +280,7 @@ int btn_configure(btn_ins_t *device, uint32_t gpio)
     
     device->gpio = gpio;
 
-    fsm_init(&device->fsm, FSM_TRANSITIONS_GET(btn_fsm), FSM_TRANSITIONS_SIZE(btn_fsm), LAST_EV,
+    fsm_init(&device->fsm, FSM_TRANSITIONS_GET(btn_fsm), FSM_TRANSITIONS_SIZE(btn_fsm), LAST_EV, 0,
              &FSM_STATE_GET(btn_fsm, ROOT_ST), device);
 
     return 0;

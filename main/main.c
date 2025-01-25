@@ -128,13 +128,17 @@ static void button_task(void* arg)
 #else
 static void btn_pressed(fsm_t* self, void* data)
 {
-    rotate_colour();       
-    app_led_update(&led, 0, colour, led.strip_config.max_leds);   
+    // led_on(&led);
+    toggle_led(&led);
+    // rotate_colour();       
+    // app_led_update(&led, 0, colour, led.strip_config.max_leds);   
 }
 
 static void btn_long_pressed(fsm_t* self, void* data)
 {
-    toggle_led(&led);
+    blink_led(&led);
+    rotate_colour();       
+    app_led_update(&led, 0, colour, led.strip_config.max_leds);   
 }
 #endif
 
