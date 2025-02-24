@@ -61,3 +61,5 @@ build/*
 
 # Libraries
 components/fsm/*
+sdkconfig.old
+sdkconfig

@@ -15,9 +15,15 @@
 #define BTN_TASK_PRIOR 3
 
 #define BTN_TASK_PERIOD_MS  10
-#define BTN_ANTIBOUNCE_T    5  // 50 ms
-#define BTN_LONG_PRESS_T    50 // 500 ms
+#define BTN_ANTIBOUNCE_T    50  // 50 ms
+#define BTN_LONG_PRESS_T    500 // 500 ms
 #define BTN_MAX_EVENTS      10
+
+// Timed events definitions
+#define BTN_TIMER_PERIOD_MS 1
+
+#define BTN_ANTI_BOUNCE_MS (BTN_ANTIBOUNCE_T / BTN_TIMER_PERIOD_MS)
+#define BTN_LONG_PRESS_MS (BTN_LONG_PRESS_T / BTN_TIMER_PERIOD_MS)
 //------------------------------------------------------//
 //  TYPES DEFINITIONS                                    //
 //------------------------------------------------------//

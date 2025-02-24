@@ -9,6 +9,8 @@
 
 static const char *TAG = "app_button";
 
+static void timed_events_cb(TimerHandle_t xTimer);
+
 //------------------------------------------------------//
 //  FSM declarations                                    //
 //------------------------------------------------------//
@@ -30,18 +32,18 @@ FSM_CREATE_STATE(btn_fsm, IDLE_ST,          ROOT_ST,       FSM_ST_NONE,  enter_i
 FSM_CREATE_STATE(btn_fsm, PRESS_ST,         ROOT_ST,       WAIT_ST,      NULL,            NULL,   exit_press)
 FSM_CREATE_STATE(btn_fsm, WAIT_ST,          PRESS_ST,      FSM_ST_NONE, enter_wait,       NULL,   NULL)
 FSM_CREATE_STATE(btn_fsm, S_PRESS_ST,       PRESS_ST,      FSM_ST_NONE, enter_press,      NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, L_PRESS_ST,       PRESS_ST,       FSM_ST_NONE,enter_long_press, NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, L_PRESS_ST,       PRESS_ST,      FSM_ST_NONE, enter_long_press, NULL,   NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
 FSM_TRANSITIONS_INIT(btn_fsm)
-//                    fsm name State source   event       state target
-FSM_TRANSITION_CREATE(btn_fsm,   INIT_ST,     READY_EV,    IDLE_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   IDLE_ST,     PRESS_EV,    PRESS_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   PRESS_ST,    UNPRESS_EV,  IDLE_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   L_PRESS_ST,  UNPRESS_EV,  IDLE_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   WAIT_ST,     TIMEOUT_EV,  S_PRESS_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,  TIMEOUT_EV,  L_PRESS_ST)
+//                    fsm name State source   event            state target
+FSM_TRANSITION_CREATE(btn_fsm,   INIT_ST,     READY_EV,         IDLE_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   IDLE_ST,     PRESS_EV,         PRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   PRESS_ST,    UNPRESS_EV,       IDLE_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   L_PRESS_ST,  UNPRESS_EV,       IDLE_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   WAIT_ST,     FSM_TIMEOUT_EV,  S_PRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,  FSM_TIMEOUT_EV,  L_PRESS_ST)
 FSM_TRANSITIONS_END()
 
 //------------------------------------------------------//
@@ -98,20 +100,16 @@ static void internal_task(void* arg)
  * 
  * @param xTimer 
  */
-static void TimerCallback(TimerHandle_t xTimer)
+static void timed_events_cb(TimerHandle_t xTimer)
 {
-    btn_ins_t * btn = (btn_ins_t *) pvTimerGetTimerID(xTimer);
+    fsm_t *fsm =  (fsm_t*)pvTimerGetTimerID(xTimer);
 
-    if(++btn->internal_count > btn->max_count)
-    {
-        ESP_LOGI(TAG, "btn timer event %d", (int)btn->max_count);
-
-        btn->internal_count = 0;
-
-        xTimerStop(xTimer, 0);
-
-        fsm_dispatch(&btn->fsm, TIMEOUT_EV, btn);
+    if (fsm == NULL) {
+        ESP_LOGE(TAG, "FSM instance is NULL in timer callback");
+        return;
     }
+
+    fsm_ticks_hook(fsm);
 }
 
 //------------------------------------------------------//
@@ -125,7 +123,7 @@ static void TimerCallback(TimerHandle_t xTimer)
  */
 static void enter_init(fsm_t *self, void* data)
 {
-    btn_ins_t * btn = (btn_ins_t *) data;
+    btn_ins_t *btn = (btn_ins_t *) data;
     BaseType_t result;
 
     ESP_LOGI(TAG, "Enter init");
@@ -136,7 +134,7 @@ static void enter_init(fsm_t *self, void* data)
     }
 
     ESP_LOGI(TAG, "Initializing button on GPIO %d", (int)btn->gpio);
-
+    
     // GPIO init
     btn->io_conf.intr_type = GPIO_INTR_ANYEDGE;
     btn->io_conf.pin_bit_mask = (1ULL << btn->gpio);
@@ -163,14 +161,29 @@ static void enter_init(fsm_t *self, void* data)
         return;
     }
     
-    // Timer init
-    btn->internal_count = 0;
-    btn->timer = xTimerCreate("btn_timer", pdMS_TO_TICKS(10), pdTRUE, data, TimerCallback);
-    if(btn->timer == NULL) {
+    ESP_LOGI(TAG, "Button queue init %d", (int)btn->evt_q);
+    
+    // Timer for timed events
+    btn->timer = xTimerCreate(
+        "Timer_btn",                                    // Timer name
+        BTN_TIMER_PERIOD_MS / portTICK_PERIOD_MS,       // Period in ticks
+        pdTRUE,                                         // Auto-reload (periodic)
+        (void*)self,                                    // Timer ID (not used here)
+        timed_events_cb                                   // Callback function
+    );
+
+    ESP_LOGI(TAG, "Timer init %d %d %d %d", (int)data, (int)self->current_data, (int)self->current_state, (int)self->transitions);
+    
+    if (!btn->timer)
+    {
         ESP_LOGE(TAG, "Failed to create timer");
         return;
+    } 
+
+    if (xTimerStart(btn->timer, 0) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to start timer");
+        return;
     }
-    xTimerStop(btn->timer, 0);
 
     // Task init
     result = xTaskCreate(internal_task, "btn_task", 2048*6, (void*const)btn, tskIDLE_PRIORITY+5, NULL);
@@ -199,8 +212,6 @@ static void enter_wait(fsm_t *self, void* data)
     btn->evt = BOUNCE_EV;
     // Sets timer target to antibounce time
     btn->max_count = BTN_ANTIBOUNCE_T;
-
-    xTimerStart(btn->timer, 0);
 }
 
 /**
@@ -220,8 +231,6 @@ static void enter_press(fsm_t *self, void* data)
 
     // Sets timer target to long press time
     btn->max_count = BTN_LONG_PRESS_T;
-
-    xTimerStart(btn->timer, 0);
 }
 
 /**
@@ -237,8 +246,6 @@ static void enter_long_press(fsm_t *self, void* data)
     ESP_LOGI(TAG, "Enter long press");
     
     btn->evt = LONG_PRESS_EV;
-
-    xTimerStop(btn->timer, 0);
 
     // Sends long press event
     xQueueSend(btn->evt_q, &btn->evt, 0);
@@ -257,8 +264,6 @@ static void exit_press(fsm_t *self, void* data)
     ESP_LOGI(TAG, "Exit press %d", (int)btn->evt);
     
     btn->internal_count = 0;
-
-    xTimerStop(btn->timer, 0);
 
     // Sends long press event
     if(btn->evt != LONG_PRESS_EV) xQueueSend(btn->evt_q, &btn->evt, 0);
@@ -280,8 +285,16 @@ int btn_configure(btn_ins_t *device, uint32_t gpio)
     
     device->gpio = gpio;
 
-    fsm_init(&device->fsm, FSM_TRANSITIONS_GET(btn_fsm), FSM_TRANSITIONS_SIZE(btn_fsm), LAST_EV, 0,
-             &FSM_STATE_GET(btn_fsm, ROOT_ST), device);
+    fsm_init(&device->fsm, 
+                FSM_TRANSITIONS_GET(btn_fsm), 
+                FSM_TRANSITIONS_SIZE(btn_fsm), 
+                LAST_EV, 
+                BTN_TIMER_PERIOD_MS,
+                &FSM_STATE_GET(btn_fsm, ROOT_ST), 
+                device);
+
+    fsm_timed_event_set(&FSM_STATE_GET(btn_fsm, WAIT_ST), BTN_ANTI_BOUNCE_MS);
+    fsm_timed_event_set(&FSM_STATE_GET(btn_fsm, S_PRESS_ST), BTN_LONG_PRESS_MS);
 
     return 0;
 }

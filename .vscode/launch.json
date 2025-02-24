@@ -2,29 +2,14 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "ESP32 Debug",
+      "type": "gdbtarget",
+      "request": "attach",
+      "name": "Eclipse CDT GDB Adapter"
+    },
+    {
       "type": "espidf",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/build/${command:espIdf.getProjectName}.elf",
-      "args": [],
-      "stopAtEntry": true,
-      "cwd": "${workspaceFolder}",
-      "environment": [],
-      "externalConsole": false,
-      "MIMode": "gdb",
-      "miDebuggerPath": "${config:idf.toolsPath}/tools/xtensa-esp32-elf/esp-2021r2-patch3-8.4.0/xtensa-esp32-elf/bin/xtensa-esp32-elf-gdb",
-      "setupCommands": [
-        {
-          "description": "Enable pretty-printing for gdb",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
-        }
-      ],
-      "openOCDArgs": [
-        "-f", "interface/ftdi/esp32_devkitj_v1.cfg",
-        "-f", "board/esp32-wrover-kit-3.3v.cfg"
-      ]
+      "name": "Launch",
+      "request": "launch"
     }
   ]
 }
