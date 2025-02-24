@@ -33,6 +33,7 @@ enum {
     BLINK_ON_ST,
     BLINK_OFF_ST,
     UPDATE_ST,
+    LAST_ST,
 };
 
 /**
@@ -53,7 +54,7 @@ enum {
 static void enter_init(fsm_t *self, void* data);
 static void enter_on(fsm_t *self, void* data);
 static void enter_off(fsm_t *self, void* data);
-static void enter_update(fsm_t *self, void* data);
+static void led_update(fsm_t *self, void* data);
 
 // Define FSM states
 FSM_STATES_INIT(led_fsm)
@@ -66,7 +67,6 @@ FSM_CREATE_STATE(led_fsm, ON_FIX_ST,    ON_ST,          FSM_ST_NONE,    enter_on
 FSM_CREATE_STATE(led_fsm, BLINKING_ST,  ON_ST,          BLINK_OFF_ST,   NULL,           NULL, NULL)
 FSM_CREATE_STATE(led_fsm, BLINK_ON_ST,  BLINKING_ST,    FSM_ST_NONE,    enter_on,       NULL, NULL)
 FSM_CREATE_STATE(led_fsm, BLINK_OFF_ST, BLINKING_ST,    FSM_ST_NONE,    enter_off,      NULL, NULL)
-FSM_CREATE_STATE(led_fsm, UPDATE_ST,    ROOT_ST,        FSM_ST_NONE,    enter_update,   NULL, NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
@@ -74,15 +74,15 @@ FSM_TRANSITIONS_INIT(led_fsm)
 //                    fsm name    State source      event           state target
 FSM_TRANSITION_CREATE(led_fsm,      INIT_ST,        READY_EV,       OFF_ST)
 FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,         ON_EV,          ON_ST)
-FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          OFF_EV,         OFF_ST)
 FSM_TRANSITION_CREATE(led_fsm,      OFF_ST,         TOGGLE_EV,      ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          OFF_EV,         OFF_ST)
 FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          TOGGLE_EV,      OFF_ST)
-FSM_TRANSITION_CREATE(led_fsm,      ON_ST,          UPDATE_EV,      UPDATE_ST)
-FSM_TRANSITION_CREATE(led_fsm,      ON_FIX_ST,      BLINK_EV,       BLINKING_ST)
-FSM_TRANSITION_CREATE(led_fsm,      BLINK_ON_ST,    FSM_TIMEOUT_EV, BLINK_OFF_ST)
-FSM_TRANSITION_CREATE(led_fsm,      BLINK_OFF_ST,   FSM_TIMEOUT_EV, BLINK_ON_ST)
-FSM_TRANSITION_CREATE(led_fsm,      BLINKING_ST,    ON_EV,          ON_FIX_ST)
-FSM_TRANSITION_CREATE(led_fsm,      UPDATE_ST,      READY_EV,       ON_ST)
+FSM_TRANSITION_WORK_CREATE(led_fsm, ON_ST,          UPDATE_EV,       ON_ST,      led_update)
+FSM_TRANSITION_CREATE(led_fsm,      ON_FIX_ST,      BLINK_EV,        BLINKING_ST)
+FSM_TRANSITION_CREATE(led_fsm,      BLINK_ON_ST,    FSM_TIMEOUT_EV,  BLINK_OFF_ST)
+FSM_TRANSITION_CREATE(led_fsm,      BLINK_OFF_ST,   FSM_TIMEOUT_EV,  BLINK_ON_ST)
+FSM_TRANSITION_CREATE(led_fsm,      BLINKING_ST,    ON_EV,           ON_FIX_ST)
+FSM_TRANSITION_CREATE(led_fsm,      BLINKING_ST,    BLINK_EV,        OFF_ST)
 FSM_TRANSITIONS_END()
 
 //------------------------------------------------------//
@@ -175,7 +175,7 @@ static void enter_off(fsm_t *self, void* data)
     led_strip_clear(led_data->handle);
 }
 
-static void enter_update(fsm_t *self, void* data)
+static void led_update(fsm_t *self, void* data)
 {
     led_ins_t *led_data = data;
 
@@ -186,8 +186,6 @@ static void enter_update(fsm_t *self, void* data)
     
     /* Refresh the strip to send data */
     led_strip_refresh(led_data->handle);
-    
-    fsm_dispatch(self, READY_EV, data);
 }
 
 /**
@@ -308,12 +306,15 @@ int app_led_run(led_ins_t *device)
  */
 int app_led_update(led_ins_t *device, uint32_t index, led_colour_t *colour, uint32_t len)
 {
-    if(device == NULL || colour == NULL) return -3;
-    if(index >= device->strip_config.max_leds) return -1;
-    if(len == 0 || len > device->strip_config.max_leds) return -1;
-    if((index+len) > device->strip_config.max_leds) return -1;
-    if(fsm_state_get(&device->fsm) != ON_ST) return -2;
-
+    if(device == NULL || colour == NULL) return -11;
+    if(index >= device->strip_config.max_leds) return -12;
+    if(len == 0 || len > device->strip_config.max_leds) return -13;
+    if((index+len) > device->strip_config.max_leds) return -14;
+    
+    int ret = fsm_state_get(&device->fsm);
+    
+    if(ret != ON_FIX_ST) return -ret;
+    
     memcpy(&device->colour[index], colour, sizeof(led_colour_t)*len);
 
     fsm_dispatch(&device->fsm, UPDATE_EV, device);

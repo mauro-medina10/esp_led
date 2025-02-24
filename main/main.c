@@ -128,17 +128,21 @@ static void button_task(void* arg)
 #else
 static void btn_pressed(fsm_t* self, void* data)
 {
-    // led_on(&led);
-    toggle_led(&led);
-    // rotate_colour();       
-    // app_led_update(&led, 0, colour, led.strip_config.max_leds);   
+    int ret = 0;
+
+    led_on(&led);
+    // toggle_led(&led);
+    rotate_colour();       
+    ret = app_led_update(&led, 0, colour, led.strip_config.max_leds);  
+    
+    ESP_LOGI(TAG, "LED on %d", (int)ret); 
 }
 
 static void btn_long_pressed(fsm_t* self, void* data)
 {
     blink_led(&led);
-    rotate_colour();       
-    app_led_update(&led, 0, colour, led.strip_config.max_leds);   
+    // rotate_colour();       
+    // app_led_update(&led, 0, colour, led.strip_config.max_leds);   
 }
 #endif
 
