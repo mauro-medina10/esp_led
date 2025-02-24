@@ -39,7 +39,7 @@ static void btn_long_pressed(fsm_t* self, void* data);
 
 // Button Actor 
 FSM_ACTOR_INIT(btn_actor)
-FSM_ACTOR_CREATE(S_PRESS_ST, btn_pressed, NULL, NULL)
+FSM_ACTOR_CREATE(S_UNPRESS_ST, btn_pressed, NULL, NULL)
 FSM_ACTOR_CREATE(L_PRESS_ST, btn_long_pressed, NULL, NULL)
 FSM_ACTOR_END()
 

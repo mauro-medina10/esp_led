@@ -15,7 +15,7 @@
 #define BTN_TASK_PRIOR 3
 
 #define BTN_TASK_PERIOD_MS  10
-#define BTN_ANTIBOUNCE_T    50  // 50 ms
+#define BTN_ANTIBOUNCE_T    10  // 50 ms
 #define BTN_LONG_PRESS_T    500 // 500 ms
 #define BTN_MAX_EVENTS      10
 
@@ -72,6 +72,7 @@ typedef enum {
     PRESS_ST,
     WAIT_ST,
     S_PRESS_ST,
+    S_UNPRESS_ST,
     L_PRESS_ST,
 } btn_st_t;
 

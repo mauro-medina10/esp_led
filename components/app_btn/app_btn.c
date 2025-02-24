@@ -20,30 +20,33 @@ static void enter_init      (fsm_t *self, void* data);
 static void enter_idle      (fsm_t *self, void* data);
 static void enter_wait      (fsm_t *self, void* data);
 static void enter_press     (fsm_t *self, void* data);
+static void enter_unpress   (fsm_t *self, void* data);
 static void enter_long_press(fsm_t *self, void* data);
 static void exit_press      (fsm_t *self, void* data);
 
 // Define FSM states
 FSM_STATES_INIT(btn_fsm)
-//                  name  state id          parent           sub         entry            run     exit
-FSM_CREATE_STATE(btn_fsm, ROOT_ST,          FSM_ST_NONE,   INIT_ST,      NULL,            NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, INIT_ST,          ROOT_ST,       FSM_ST_NONE, enter_init,       NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, IDLE_ST,          ROOT_ST,       FSM_ST_NONE,  enter_idle,            NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, PRESS_ST,         ROOT_ST,       WAIT_ST,      NULL,            NULL,   exit_press)
-FSM_CREATE_STATE(btn_fsm, WAIT_ST,          PRESS_ST,      FSM_ST_NONE, enter_wait,       NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, S_PRESS_ST,       PRESS_ST,      FSM_ST_NONE, enter_press,      NULL,   NULL)
-FSM_CREATE_STATE(btn_fsm, L_PRESS_ST,       PRESS_ST,      FSM_ST_NONE, enter_long_press, NULL,   NULL)
+//                  name  state id          parent           sub         entry             run     exit
+FSM_CREATE_STATE(btn_fsm, ROOT_ST,          FSM_ST_NONE,   INIT_ST,      NULL,             NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, INIT_ST,          ROOT_ST,       FSM_ST_NONE,  enter_init,       NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, IDLE_ST,          ROOT_ST,       FSM_ST_NONE,  enter_idle,       NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, PRESS_ST,         ROOT_ST,       WAIT_ST,      NULL,             NULL,   exit_press)
+FSM_CREATE_STATE(btn_fsm, WAIT_ST,          PRESS_ST,      FSM_ST_NONE,  enter_wait,       NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, S_PRESS_ST,       ROOT_ST,       FSM_ST_NONE,  enter_press,      NULL,   NULL)
+FSM_CREATE_STATE(btn_fsm, S_UNPRESS_ST,     ROOT_ST,       FSM_ST_NONE,  enter_unpress,    NULL,   exit_press)
+FSM_CREATE_STATE(btn_fsm, L_PRESS_ST,       PRESS_ST,      FSM_ST_NONE,  enter_long_press, NULL,   NULL)
 FSM_STATES_END()
 
 // Define FSM transitions
 FSM_TRANSITIONS_INIT(btn_fsm)
-//                    fsm name State source   event            state target
-FSM_TRANSITION_CREATE(btn_fsm,   INIT_ST,     READY_EV,         IDLE_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   IDLE_ST,     PRESS_EV,         PRESS_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   PRESS_ST,    UNPRESS_EV,       IDLE_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   L_PRESS_ST,  UNPRESS_EV,       IDLE_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   WAIT_ST,     FSM_TIMEOUT_EV,  S_PRESS_ST)
-FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,  FSM_TIMEOUT_EV,  L_PRESS_ST)
+//                    fsm name State source    event            state target
+FSM_TRANSITION_CREATE(btn_fsm,   INIT_ST,      READY_EV,         IDLE_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   IDLE_ST,      PRESS_EV,         PRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   PRESS_ST,     UNPRESS_EV,       IDLE_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   WAIT_ST,      FSM_TIMEOUT_EV,  S_PRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,   FSM_TIMEOUT_EV,  L_PRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   S_PRESS_ST,   UNPRESS_EV,      S_UNPRESS_ST)
+FSM_TRANSITION_CREATE(btn_fsm,   S_UNPRESS_ST, READY_EV,        IDLE_ST)
 FSM_TRANSITIONS_END()
 
 //------------------------------------------------------//
@@ -231,6 +234,17 @@ static void enter_press(fsm_t *self, void* data)
 
     // Sets timer target to long press time
     btn->max_count = BTN_LONG_PRESS_T;
+}
+
+/**
+ * @brief Shor unpress event
+ * 
+ * @param self 
+ * @param data 
+ */
+static void enter_unpress(fsm_t *self, void* data)
+{
+    fsm_dispatch(self, READY_EV, data);
 }
 
 /**
