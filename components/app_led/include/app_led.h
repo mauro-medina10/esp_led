@@ -51,7 +51,9 @@ typedef struct
     led_strip_config_t strip_config;
     led_strip_spi_config_t spi_config;
     // fsm 
-    fsm_t led_fsm;
+    fsm_t fsm;
+    //timer
+    TimerHandle_t timer;
     // 
     led_colour_t colour[MAX_STRIP_LEN]; 
 }led_ins_t;

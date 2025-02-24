@@ -120,7 +120,7 @@ static void enter_init(fsm_t *self, void* data)
     ESP_ERROR_CHECK(led_strip_new_spi_device(&led_data->strip_config, &led_data->spi_config, &led_data->handle));
 
     // Timer for timed events
-    TimerHandle_t xTimer = xTimerCreate(
+    led_data->timer = xTimerCreate(
         "TimedEvents",                              // Timer name
         LED_TIMER_PERIOD_MS / portTICK_PERIOD_MS,   // Period in ticks
         pdTRUE,                                     // Auto-reload (periodic)
@@ -128,7 +128,7 @@ static void enter_init(fsm_t *self, void* data)
         timed_events_timer                          // Callback function
     );
 
-    if (xTimer != NULL) xTimerStart(xTimer, 0);
+    if (led_data->timer != NULL) xTimerStart(led_data->timer, 0);
     
     // Task init
     result = xTaskCreate(internal_led_task, "led_task", 2048*2, (void*const)led_data, tskIDLE_PRIORITY+LED_TASK_PRIOR, NULL);
@@ -233,7 +233,7 @@ void blink_led(led_ins_t *device)
 {
     if(device == NULL) return;
 
-    fsm_dispatch(&device->led_fsm, BLINK_EV, device);
+    fsm_dispatch(&device->fsm, BLINK_EV, device);
 }
 
 /**
@@ -245,7 +245,7 @@ void toggle_led(led_ins_t *device)
 {
     if(device == NULL) return;
 
-    fsm_dispatch(&device->led_fsm, TOGGLE_EV, device);
+    fsm_dispatch(&device->fsm, TOGGLE_EV, device);
 }
 
 
@@ -253,14 +253,14 @@ void led_on(led_ins_t *device)
 {
     if(device == NULL) return;
 
-    fsm_dispatch(&device->led_fsm, ON_EV, device);
+    fsm_dispatch(&device->fsm, ON_EV, device);
 }
 
 void led_off(led_ins_t *device)
 {
     if(device == NULL) return;
 
-    fsm_dispatch(&device->led_fsm, OFF_EV, device);
+    fsm_dispatch(&device->fsm, OFF_EV, device);
 }
 
 /**
@@ -273,8 +273,13 @@ void configure_led(led_ins_t *device)
 
     ESP_LOGI(TAG, "Inits the FSM %d", device->strip_config.strip_gpio_num);
     
-    fsm_init(&device->led_fsm, FSM_TRANSITIONS_GET(led_fsm), FSM_TRANSITIONS_SIZE(led_fsm), 6, 1,
-             &FSM_STATE_GET(led_fsm, ROOT_ST), device);
+    fsm_init(&device->fsm, 
+                FSM_TRANSITIONS_GET(led_fsm), 
+                FSM_TRANSITIONS_SIZE(led_fsm), 
+                LAST_EV, 
+                LED_TIMER_PERIOD_MS,
+                &FSM_STATE_GET(led_fsm, ROOT_ST), 
+                device);
 
     fsm_timed_event_set(&FSM_STATE_GET(led_fsm, BLINK_ON_ST), LED_BLINK_PERIOD);
     fsm_timed_event_set(&FSM_STATE_GET(led_fsm, BLINK_OFF_ST), LED_BLINK_PERIOD);
@@ -289,7 +294,7 @@ int app_led_run(led_ins_t *device)
 {
     if(device == NULL) return -1;
 
-    return fsm_run(&device->led_fsm); 
+    return fsm_run(&device->fsm); 
 }
 
 /**
@@ -307,11 +312,11 @@ int app_led_update(led_ins_t *device, uint32_t index, led_colour_t *colour, uint
     if(index >= device->strip_config.max_leds) return -1;
     if(len == 0 || len > device->strip_config.max_leds) return -1;
     if((index+len) > device->strip_config.max_leds) return -1;
-    if(fsm_state_get(&device->led_fsm) != ON_ST) return -2;
+    if(fsm_state_get(&device->fsm) != ON_ST) return -2;
 
     memcpy(&device->colour[index], colour, sizeof(led_colour_t)*len);
 
-    fsm_dispatch(&device->led_fsm, UPDATE_EV, device);
+    fsm_dispatch(&device->fsm, UPDATE_EV, device);
 
     return 0;
 }
